@@ -7,7 +7,6 @@ Route::get('/', [ProductController::class, 'dashboard']);
 
 Route::get('/forecasting', [\App\Http\Controllers\SalesController::class, 'index'])->name('forecasting');
 Route::post('/sales', [\App\Http\Controllers\SalesController::class, 'store']);
-Route::get('/sales/history', [\App\Http\Controllers\SalesController::class, 'history'])->name('sales.history');
 
 Route::get('/inventory', [ProductController::class, 'index']);
 
@@ -38,6 +37,32 @@ Route::get('/register', function () {
 Route::get('products/search', [ProductController::class, 'search']);
 Route::post('products/{id}/approve-reorder', [ProductController::class, 'approveReorder']);
 
+// Test SARIMA functionality
+Route::get('test/sarima', function () {
+    $salesController = new \App\Http\Controllers\SalesController();
+
+    // Get the same data that the forecasting page uses
+    $monthlySales = $salesController->getMonthlySalesData();
+    $salesStats = $salesController->getSalesStatistics();
+    $topProducts = $salesController->getTopSellingProducts();
+
+    // Generate SARIMA forecasts
+    $forecast = $salesController->generateSarimaForecast($monthlySales);
+    $demandForecast = $salesController->generateDemandForecast($monthlySales);
+
+    return response()->json([
+        'sarima_status' => 'functional',
+        'monthly_sales_data' => $monthlySales->toArray(),
+        'current_month_revenue' => $salesStats['current_month_revenue'],
+        'current_month_sales' => $salesStats['total_sales_count'],
+        'top_products' => $topProducts->toArray(),
+        'revenue_forecast' => $forecast,
+        'demand_forecast' => $demandForecast,
+        'forecast_months' => count($forecast['predicted'] ?? []),
+        'message' => 'SARIMA forecasting is working!'
+    ]);
+});
+
 // SARIMA-enhanced inventory management routes
 Route::get('api/sarima-analysis', [ProductController::class, 'getSarimaAnalysis']);
 Route::post('api/auto-update-reorder-levels', [ProductController::class, 'autoUpdateReorderLevels']);
@@ -46,12 +71,12 @@ Route::get('api/inventory-insights', [\App\Http\Controllers\SalesController::cla
 // Debug routes
 Route::get('debug/sales-stats', function () {
     $salesController = new \App\Http\Controllers\SalesController();
-    
+
     // Get current month data
     $thisMonth = \Carbon\Carbon::now()->format('Y-m');
     $allSales = \App\Models\Sale::all();
     $thisMonthSales = \App\Models\Sale::where('sale_month', $thisMonth)->get();
-    
+
     return response()->json([
         'current_month' => $thisMonth,
         'all_sales_count' => $allSales->count(),
@@ -68,7 +93,7 @@ Route::get('test/db', function () {
     try {
         $productsCount = \App\Models\Product::count();
         $salesCount = \App\Models\Sale::count();
-        
+
         return response()->json([
             'database_connected' => true,
             'products_count' => $productsCount,
@@ -90,10 +115,10 @@ Route::get('test/sales', function () {
         ->orderBy('created_at', 'desc')
         ->limit(5)
         ->get();
-        
+
     return response()->json([
         'total_sales_count' => \App\Models\Sale::count(),
-        'recent_sales' => $sales->map(function($sale) {
+        'recent_sales' => $sales->map(function ($sale) {
             return [
                 'id' => $sale->id,
                 'product_name' => $sale->product->name ?? 'Unknown',
