@@ -13,6 +13,7 @@
             Dashboard
         </a>
     </li>
+    @if(Auth::check() && Auth::user()->role !== 'staff')
     <li>
         <a href="/forecasting" class="{{ request()->is('forecasting') ? 'active' : '' }}">
             <span style="vertical-align: middle; margin-right: 10px; color: #111;">
@@ -25,6 +26,7 @@
             Forecasting
         </a>
     </li>
+    @endif
     <li>
         <a href="/inventory" class="{{ request()->is('inventory') ? 'active' : '' }}">
             <span style="vertical-align: middle; margin-right: 10px; color: #111;">
@@ -37,6 +39,7 @@
             Inventory
         </a>
     </li>
+    @if(Auth::check() && Auth::user()->role !== 'staff')
     <li>
         <a href="/analytics" class="{{ request()->is('analytics') ? 'active' : '' }}">
             <span style="vertical-align: middle; margin-right: 10px; color: #111;">
@@ -62,4 +65,20 @@
             Settings
         </a>
     </li>
+    @endif
+    @if(Auth::check() && Auth::user()->role === 'admin')
+    <li>
+        <a href="/account-management" class="{{ request()->is('account-management') ? 'active' : '' }}">
+            <span style="vertical-align: middle; margin-right: 10px; color: #111;">
+                <!-- Account Management Icon -->
+                <svg width="20" height="20" fill="none" stroke="#111" stroke-width="1.7" viewBox="0 0 24 24">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+            </span>
+            Account Management
+        </a>
+    </li>
+    @endif
 </ul>

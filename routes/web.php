@@ -2,40 +2,45 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserController;
 
-Route::get('/', [ProductController::class, 'dashboard']);
+// Authentication routes
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-Route::get('/forecasting', [\App\Http\Controllers\SalesController::class, 'index'])->name('forecasting');
-Route::post('/sales', [\App\Http\Controllers\SalesController::class, 'store']);
+// Protected routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/', [ProductController::class, 'dashboard']);
+    Route::get('/forecasting', [\App\Http\Controllers\SalesController::class, 'index'])->name('forecasting');
+    Route::post('/sales', [\App\Http\Controllers\SalesController::class, 'store']);
+    Route::get('/inventory', [ProductController::class, 'index']);
 
-Route::get('/inventory', [ProductController::class, 'index']);
+    Route::get('/analytics', function () {
+        $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
+        $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
+        return view('pages.analytics', compact('reorderCount', 'reorderNotifications'));
+    });
 
-Route::get('/analytics', function () {
-    $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
-    $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
-    return view('pages.analytics', compact('reorderCount', 'reorderNotifications'));
+    Route::get('/settings', function () {
+        $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
+        $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
+        return view('pages.settings', compact('reorderCount', 'reorderNotifications'));
+    });
+
+    Route::get('products/search', [ProductController::class, 'search']);
+    Route::post('products/{id}/approve-reorder', [ProductController::class, 'approveReorder']);
 });
 
-
-Route::get('/settings', function () {
-    $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
-    $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
-    return view('pages.settings', compact('reorderCount', 'reorderNotifications'));
+// Account Management - Admin Only
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/account-management', [UserController::class, 'index']);
+    Route::post('/account-management/users', [UserController::class, 'store']);
+    Route::get('/account-management/users/{id}/edit', [UserController::class, 'edit']);
+    Route::put('/account-management/users/{id}', [UserController::class, 'update']);
+    Route::delete('/account-management/users/{id}', [UserController::class, 'destroy']);
 });
-
-Route::get('/login', function () {
-    $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
-    $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
-    return view('auth.login', compact('reorderCount', 'reorderNotifications'));
-});
-Route::get('/register', function () {
-    $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
-    $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
-    return view('auth.register', compact('reorderCount', 'reorderNotifications'));
-});
-
-Route::get('products/search', [ProductController::class, 'search']);
-Route::post('products/{id}/approve-reorder', [ProductController::class, 'approveReorder']);
 
 // Test SARIMA functionality
 Route::get('test/sarima', function () {
