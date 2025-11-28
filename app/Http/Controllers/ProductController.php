@@ -207,6 +207,79 @@ class ProductController extends Controller
         return $seasonal;
     }
 
+    /**
+     * Calculate forecast accuracy based on SARIMA predictions vs actual sales
+     */
+    public static function calculateForecastAccuracy()
+    {
+        $products = Product::all();
+        $totalMape = 0;
+        $validProducts = 0;
+        
+        foreach ($products as $product) {
+            // Get historical data (last 6 months)
+            $historicalData = self::getProductDemandHistory($product->id, 6);
+            
+            // Need at least 4 data points to compare (3 for training, 1 for testing)
+            if (count($historicalData) >= 4) {
+                // Use last value as "actual" and previous values to forecast
+                $actualDemand = array_pop($historicalData); // Take last month as actual
+                
+                if ($actualDemand > 0) {
+                    // Calculate forecast using remaining historical data
+                    $trend = self::calculateSimpleTrend($historicalData);
+                    $seasonal = self::calculateSimpleSeasonality($historicalData, 3);
+                    $lastValue = end($historicalData);
+                    $seasonalIndex = count($historicalData) % 3;
+                    $seasonalComponent = isset($seasonal[$seasonalIndex]) ? $seasonal[$seasonalIndex] : 0;
+                    $forecastedDemand = max(0, $lastValue + $trend + $seasonalComponent);
+                    
+                    // Calculate MAPE for this product
+                    if ($forecastedDemand > 0) {
+                        $productMape = abs(($actualDemand - $forecastedDemand) / $actualDemand) * 100;
+                        $totalMape += min($productMape, 100); // Cap at 100% error
+                        $validProducts++;
+                    }
+                }
+            }
+        }
+        
+        // Calculate average MAPE across all products
+        // If no products with enough data, show a default good accuracy
+        if ($validProducts > 0) {
+            $avgMape = $totalMape / $validProducts;
+        } else {
+            // No data available yet - show pending status
+            return [
+                'mape' => 0,
+                'accuracy_percentage' => 0,
+                'status' => 'Pending Data',
+                'products_analyzed' => 0
+            ];
+        }
+        
+        $accuracyPercentage = round(max(0, 100 - $avgMape), 1);
+        
+        // Determine status based on accuracy
+        $status = 'Excellent';
+        if ($accuracyPercentage < 95) {
+            $status = 'Good';
+        }
+        if ($accuracyPercentage < 85) {
+            $status = 'Fair';
+        }
+        if ($accuracyPercentage < 75) {
+            $status = 'Needs Improvement';
+        }
+        
+        return [
+            'mape' => round($avgMape, 2),
+            'accuracy_percentage' => $accuracyPercentage,
+            'status' => $status,
+            'products_analyzed' => $validProducts
+        ];
+    }
+
         /**
      * Display the dashboard with SARIMA-enhanced statistics.
      */
@@ -239,6 +312,16 @@ class ProductController extends Controller
         });
         
         $reorderNotifications = self::getReorderNotifications();
+        $reorderCount = self::getReorderCount();
+        
+        // Get forecast accuracy
+        $forecastAccuracy = self::calculateForecastAccuracy();
+        
+        // Get monthly revenue
+        $monthlyRevenue = self::calculateMonthlyRevenue();
+        
+        // Get sales trend data for chart (last 6 months)
+        $salesTrend = self::getSalesTrendData();
         
         // Add SARIMA insights summary
         $sarimaInsights = [
@@ -259,7 +342,11 @@ class ProductController extends Controller
             'dynamicReorderCount',
             'totalValue', 
             'reorderNotifications',
-            'sarimaInsights'
+            'reorderCount',
+            'sarimaInsights',
+            'forecastAccuracy',
+            'monthlyRevenue',
+            'salesTrend'
         ));
     }
 
@@ -599,5 +686,104 @@ class ProductController extends Controller
             'message' => "Updated reorder levels for {$updated} products based on SARIMA analysis",
             'updated_count' => $updated
         ]);
+    }
+
+    /**
+     * Calculate monthly revenue with comparison to previous month
+     */
+    public static function calculateMonthlyRevenue()
+    {
+        $currentMonth = Carbon::now()->format('Y-m');
+        $lastMonth = Carbon::now()->subMonth()->format('Y-m');
+        
+        $currentRevenue = Sale::whereYear('sale_date', substr($currentMonth, 0, 4))
+            ->whereMonth('sale_date', substr($currentMonth, 5, 2))
+            ->sum('total_amount');
+        $lastRevenue = Sale::whereYear('sale_date', substr($lastMonth, 0, 4))
+            ->whereMonth('sale_date', substr($lastMonth, 5, 2))
+            ->sum('total_amount');
+        
+        $change = $currentRevenue - $lastRevenue;
+        $changePercentage = $lastRevenue > 0 ? ($change / $lastRevenue) * 100 : 0;
+        $changeDirection = $change >= 0 ? 'increase' : 'decrease';
+        
+        return [
+            'current' => $currentRevenue,
+            'previous' => $lastRevenue,
+            'change' => abs($change),
+            'change_percentage' => abs($changePercentage),
+            'change_direction' => $changeDirection
+        ];
+    }
+
+    /**
+     * Get sales trend data for the last 6 months with forecast
+     */
+    public static function getSalesTrendData()
+    {
+        $months = [];
+        $actualSales = [];
+        $forecastedSales = [];
+        
+        // Get last 6 months of actual sales
+        for ($i = 5; $i >= 0; $i--) {
+            $month = Carbon::now()->subMonths($i)->format('Y-m');
+            $monthLabel = Carbon::now()->subMonths($i)->format('M Y');
+            
+            $revenue = Sale::whereYear('sale_date', substr($month, 0, 4))
+                ->whereMonth('sale_date', substr($month, 5, 2))
+                ->sum('total_amount');
+            
+            $months[] = $monthLabel;
+            $actualSales[] = $revenue;
+        }
+        
+        // Calculate simple forecast for next 3 months based on trend
+        $validSales = array_filter($actualSales, function($val) { return $val > 0; });
+        
+        if (count($validSales) >= 2) {
+            // Calculate average growth rate
+            $recentSales = array_slice($actualSales, -3); // Last 3 months
+            $avgRecent = array_sum($recentSales) / count($recentSales);
+            
+            // Simple linear trend
+            $trend = 0;
+            if (count($validSales) >= 3) {
+                $first = array_slice($validSales, 0, 2);
+                $last = array_slice($validSales, -2);
+                $avgFirst = array_sum($first) / count($first);
+                $avgLast = array_sum($last) / count($last);
+                $trend = ($avgLast - $avgFirst) / 2; // Monthly trend
+            }
+            
+            // Generate forecast for next 6 months (to match SARIMA)
+            $lastActual = end($actualSales);
+            for ($i = 1; $i <= 6; $i++) {
+                $monthLabel = Carbon::now()->addMonths($i)->format('M Y');
+                $forecast = max(0, $lastActual + ($trend * $i));
+                
+                $months[] = $monthLabel;
+                $actualSales[] = null; // No actual data for future
+                $forecastedSales[] = round($forecast, 2);
+            }
+        } else {
+            // Not enough data for forecast
+            for ($i = 1; $i <= 6; $i++) {
+                $monthLabel = Carbon::now()->addMonths($i)->format('M Y');
+                $months[] = $monthLabel;
+                $actualSales[] = null;
+                $forecastedSales[] = null;
+            }
+        }
+        
+        // Fill forecast array for historical months
+        $forecastFilled = array_fill(0, 6, null);
+        $forecastFilled = array_merge($forecastFilled, $forecastedSales);
+        
+        return [
+            'months' => $months,
+            'actual' => $actualSales,
+            'forecast' => $forecastFilled
+        ];
     }
 }

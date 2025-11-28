@@ -1,84 +1,159 @@
 @include('components.topheader')
 @include('components.sidebar')
 
-<div style="margin-left: 220px; padding: 40px; padding-top: 90px; background: #fafbfc; min-height: 100vh;">
-	<h1 style="margin-bottom: 0.25em;">Inventory Management</h1>
-	<p style="margin-top: 0; color: #666;">Stock levels and automated reorder recommendations</p>
 
-	<!-- Summary Cards -->
-	<div style="display: flex; gap: 24px; margin-top: 32px; margin-bottom: 32px;">
-		<div style="flex: 1; border: 2px solid #e0e0e0; border-radius: 16px; padding: 24px; background: none; display: flex; align-items: center; gap: 16px; min-width: 180px;">
-			<span style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: #f5f5f5; font-size: 1.7rem; color: #3b82f6;">&#128230;</span>
-			<div>
-				<span style="font-size: 1rem; color: #444;">Total Products</span><br>
-				<span style="font-size: 1.2rem; font-weight: 600;">{{ $totalProducts }}</span>
-			</div>
+<style>
+.dashboard-gradient {
+	background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
+	min-height: 100vh;
+}
+.dashboard-title {
+	font-size: 2.3rem;
+	font-weight: 800;
+	margin-bottom: 0.2em;
+	letter-spacing: -1px;
+	color: #18181b;
+}
+.dashboard-subtitle {
+	color: #6366f1;
+	font-size: 1.1rem;
+	margin-bottom: 2.5rem;
+	font-weight: 500;
+}
+.dashboard-cards {
+	display: flex;
+	gap: 32px;
+	margin-bottom: 32px;
+	flex-wrap: wrap;
+}
+.dashboard-card {
+	flex: 1 1 220px;
+	background: #fff;
+	border-radius: 18px;
+	box-shadow: 0 4px 24px 0 rgba(99,102,241,0.08);
+	padding: 32px 28px 28px 28px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-width: 220px;
+	transition: transform 0.18s cubic-bezier(.4,2,.6,1), box-shadow 0.18s cubic-bezier(.4,2,.6,1);
+	border: none;
+	position: relative;
+	cursor: pointer;
+}
+.dashboard-card:hover {
+	transform: translateY(-7px) scale(1.03);
+	box-shadow: 0 8px 32px 0 rgba(99,102,241,0.16);
+}
+.dashboard-card .icon {
+	width: 48px;
+	height: 48px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 2.1rem;
+	margin-bottom: 10px;
+}
+.dashboard-card .main {
+	font-size: 2rem;
+	font-weight: 700;
+	color: #18181b;
+	margin-bottom: 0.2em;
+}
+.dashboard-card .desc {
+	font-size: 1.08rem;
+	color: #6366f1;
+	font-weight: 600;
+	margin-bottom: 0.5em;
+}
+.dashboard-card .sub {
+	font-size: 1rem;
+	color: #888;
+	font-weight: 400;
+}
+</style>
+<div class="dashboard-gradient" style="margin-left: 220px; padding: 40px; padding-top: 90px;">
+	<div class="dashboard-title">Inventory Management</div>
+	<div class="dashboard-subtitle">Stock levels and automated reorder recommendations</div>
+	<div class="dashboard-cards">
+		<div class="dashboard-card" tabindex="0">
+			<div class="icon" style="background: #e0e7ff; color: #3b82f6;">&#128230;</div>
+			<div class="desc">Total Products</div>
+			<div class="main">{{ $totalProducts }}</div>
 		</div>
-		<div style="flex: 1; border: 2px solid #e0e0e0; border-radius: 16px; padding: 24px; background: none; display: flex; align-items: center; gap: 16px; min-width: 180px;">
-			<span style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: #f5f5f5; font-size: 1.7rem; color: #ef4444;">&#9888;</span>
-			<div>
-				<span style="font-size: 1rem; color: #444;">Low Stock</span><br>
-				<span style="font-size: 1.2rem; font-weight: 600;">{{ $lowStockCount }}</span>
-			</div>
+		<div class="dashboard-card" tabindex="0">
+			<div class="icon" style="background: #fee2e2; color: #ef4444;">&#9888;</div>
+			<div class="desc">Low Stock</div>
+			<div class="main">{{ $lowStockCount }}</div>
 		</div>
-		<div style="flex: 1; border: 2px solid #e0e0e0; border-radius: 16px; padding: 24px; background: none; display: flex; align-items: center; gap: 16px; min-width: 180px;">
-			<span style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: #f5f5f5; font-size: 1.7rem; color: #ff9800;">&#9888;</span>
-			<div>
-				<span style="font-size: 1rem; color: #444;">Critical</span><br>
-				<span style="font-size: 1.2rem; font-weight: 600;">{{ $criticalStockCount }}</span>
-			</div>
+		<div class="dashboard-card" tabindex="0">
+			<div class="icon" style="background: #fef9c3; color: #f59e0b;">&#9888;</div>
+			<div class="desc">Critical</div>
+			<div class="main">{{ $criticalStockCount }}</div>
 		</div>
-		<div style="flex: 1; border: 2px solid #e0e0e0; border-radius: 16px; padding: 24px; background: none; display: flex; align-items: center; gap: 16px; min-width: 180px;">
-			<span style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: #f5f5f5; font-size: 1.7rem; color: #22c55e;">₱</span>
-			<div>
-				<span style="font-size: 1rem; color: #444;">Total Value</span><br>
-				<span style="font-size: 1.2rem; font-weight: 600;">₱{{ number_format($totalValue, 2) }}</span>
-			</div>
+		<div class="dashboard-card" tabindex="0">
+			<div class="icon" style="background: #e0fce6; color: #22c55e;">₱</div>
+			<div class="desc">Total Value</div>
+			<div class="main">₱{{ number_format($totalValue, 2) }}</div>
 		</div>
 	</div>
 
-	<!-- Search and Actions Bar -->
-	<div style="display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
-		<input type="text" placeholder="Search products..." style="flex: 1; padding: 10px 16px; border-radius: 8px; border: none; background: #f3f4f6; color: #555; font-size: 1rem;" />
-		<button style="background: #fff; color: #23272f; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 18px; font-size: 1rem; font-weight: 500; cursor: pointer;">Filter</button>
-		<button id="addProductBtn" style="background: #11111a; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 1rem; font-weight: 600; cursor: pointer;">Add Product</button>
+	<!-- Modern Search and Add Product Bar -->
+	<div style="display: flex; align-items: center; gap: 18px; margin-bottom: 22px;">
+		<input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="Search products..." style="flex: 1; padding: 14px 18px; border-radius: 10px; border: 1.5px solid #c7d2fe; font-size: 1.13rem; background: #f8fafc; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.04); transition: border 0.2s;">
+		<button id="addProductBtn" style="font-weight: 700; padding: 13px 28px; border-radius: 10px; font-size: 1.13rem; background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); border: none; color: #fff; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10); transition: background 0.2s;">+ Add Product</button>
 	</div>
 
-	<!-- Add Product Modal -->
+	<!-- Modern Add Product Modal -->
 	<div id="addProductModal" style="display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
-		<div style="position: relative; margin: 3% auto; background: white; width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
-			<div style="padding: 20px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
-				<h5 style="margin: 0; font-weight: 600;">Add Product</h5>
-				<button type="button" id="closeModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+		<div style="position: relative; margin: 3% auto; background: white; width: 90%; max-width: 500px; border-radius: 16px; box-shadow: 0 5px 24px rgba(99,102,241,0.13);">
+			<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+				<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: #6366f1;">Add Product</h5>
+				<button type="button" id="closeModal" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #6366f1;">&times;</button>
 			</div>
 			<form id="addProductForm" method="POST" action="/products">
 				@csrf
-				<div style="padding: 20px;">
-					<div style="margin-bottom: 16px;">
-						<label for="productName" style="display: block; margin-bottom: 5px; font-weight: 500;">Name</label>
-						<input type="text" id="productName" name="name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+				<div style="padding: 24px 28px;">
+					<div style="margin-bottom: 18px;">
+						<label for="productName" style="display: block; margin-bottom: 6px; font-weight: 600; color: #23272f;">Name</label>
+						<input list="productNames" name="name" id="productName" required style="width: 100%; padding: 12px; border: 1.5px solid #c7d2fe; border-radius: 10px; box-sizing: border-box; font-size: 1.08rem;">
+						<datalist id="productNames">
+							<option value="Polo Shirt">
+							<option value="Jeans">
+							<option value="Cap">
+						</datalist>
 					</div>
-					<div style="margin-bottom: 16px;">
-						<label for="productCategory" style="display: block; margin-bottom: 5px; font-weight: 500;">Category</label>
-						<input type="text" id="productCategory" name="category" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+					<div style="margin-bottom: 18px;">
+						<label for="productCategory" style="display: block; margin-bottom: 6px; font-weight: 600; color: #23272f;">Category</label>
+						<select id="productCategory" name="category" required style="width: 100%; padding: 12px; border: 1.5px solid #c7d2fe; border-radius: 10px; box-sizing: border-box; font-size: 1.08rem;">
+							<option value="">Select Category</option>
+							<option value="Apparel">Apparel</option>
+							<option value="Accessories">Accessories</option>
+						</select>
 					</div>
-					<div style="margin-bottom: 16px;">
-						<label for="productStock" style="display: block; margin-bottom: 5px; font-weight: 500;">Stock</label>
-						<input type="number" id="productStock" name="stock" min="0" value="0" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-						<small style="color: #666; font-size: 0.85rem;">Status will be automatically set: Critical (≤5), Low Stock (6-10), In Stock (>10)</small>
+					<div style="margin-bottom: 18px;">
+						<label for="productStock" style="display: block; margin-bottom: 6px; font-weight: 600; color: #23272f;">Stock</label>
+						<select id="productStock" name="stock" required style="width: 100%; padding: 12px; border: 1.5px solid #c7d2fe; border-radius: 10px; box-sizing: border-box; font-size: 1.08rem;">
+							<option value="">Select Stock</option>
+							@for($i = 50; $i <= 500; $i += 50)
+								<option value="{{ $i }}">{{ $i }}</option>
+							@endfor
+						</select>
+						<small style="color: #888; font-size: 0.92rem;">Status will be automatically set: Critical (≤5), Low Stock (6-10), In Stock (>10)</small>
 					</div>
-					<div style="margin-bottom: 16px;">
-						<label for="productPrice" style="display: block; margin-bottom: 5px; font-weight: 500;">Price</label>
-						<input type="number" step="0.01" id="productPrice" name="price" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+					<div style="margin-bottom: 18px;">
+						<label for="productPrice" style="display: block; margin-bottom: 6px; font-weight: 600; color: #23272f;">Price</label>
+						<input type="number" step="0.01" id="productPrice" name="price" style="width: 100%; padding: 12px; border: 1.5px solid #c7d2fe; border-radius: 10px; box-sizing: border-box; font-size: 1.08rem;">
 					</div>
-					<div style="margin-bottom: 16px;">
-						<label for="productReorder" style="display: block; margin-bottom: 5px; font-weight: 500;">Reorder Level</label>
-						<input type="number" id="productReorder" name="reorder_level" min="0" value="10" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+					<div style="margin-bottom: 18px;">
+						<label for="productReorder" style="display: block; margin-bottom: 6px; font-weight: 600; color: #23272f;">Reorder Level</label>
+						<input type="number" id="productReorder" name="reorder_level" min="0" value="10" required style="width: 100%; padding: 12px; border: 1.5px solid #c7d2fe; border-radius: 10px; box-sizing: border-box; font-size: 1.08rem;">
 					</div>
 				</div>
-				<div style="padding: 20px; border-top: 1px solid #e0e0e0; display: flex; gap: 12px; justify-content: flex-end;">
-					<button type="button" id="cancelBtn" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Cancel</button>
-					<button type="submit" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Add Product</button>
+				<div style="padding: 24px 28px; border-top: 1px solid #e0e0e0; display: flex; gap: 14px; justify-content: flex-end;">
+					<button type="button" id="cancelBtn" style="background: #6c757d; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-size: 1.08rem; font-weight: 600;">Cancel</button>
+					<button type="submit" style="background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-size: 1.08rem; font-weight: 700;">Add Product</button>
 				</div>
 			</form>
 		</div>
@@ -402,8 +477,20 @@
 					</tr>
 				</thead>
 				<tbody>
-					@forelse($products as $product)
-					<tr>
+					   @forelse($products as $product)
+					   <tr class="product-row">
+						</div>
+						<script>
+						function filterProducts() {
+							const input = document.getElementById('searchInput');
+							const filter = input.value.toLowerCase();
+							const rows = document.querySelectorAll('.product-row');
+							rows.forEach(row => {
+								const text = row.textContent.toLowerCase();
+								row.style.display = text.includes(filter) ? '' : 'none';
+							});
+						}
+						</script>
 						<td style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666;">{{ $loop->iteration }}</td>
 						<td style="padding: 10px 8px;">{{ $product->id }}</td>
 						<td style="padding: 10px 8px;">{{ $product->name }}</td>
@@ -412,8 +499,8 @@
 						<td style="padding: 10px 8px;">₱{{ number_format($product->price, 2) }}</td>
 						<td style="padding: 10px 8px;">{{ $product->status }}</td>
 						<td style="padding: 10px 8px;">
-							<button class="edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}" style="background: #fff; color: #23272f; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px 16px; font-size: 1rem; font-weight: 500; cursor: pointer; margin-right: 8px;">Edit</button>
-							<button class="delete-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" style="background: #dc3545; color: #fff; border: none; border-radius: 8px; padding: 6px 16px; font-size: 1rem; font-weight: 500; cursor: pointer;">Delete</button>
+							<button class="edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}" style="background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); color: #fff; border: none; border-radius: 12px; padding: 8px 20px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-right: 8px; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10); transition: background 0.2s, box-shadow 0.2s;">Edit</button>
+							<button class="delete-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" style="background: linear-gradient(90deg, #ef4444 0%, #dc3545 100%); color: #fff; border: none; border-radius: 12px; padding: 8px 20px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px 0 rgba(239,68,68,0.10); transition: background 0.2s, box-shadow 0.2s;">Delete</button>
 						</td>
 					</tr>
 					@empty

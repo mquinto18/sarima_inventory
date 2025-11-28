@@ -4,53 +4,247 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>SARIMA Forecasting - Inventory System</title>
+	<meta name="csrf-token" content="{{ csrf_token() }}">
+	<title>SARIMA Forecasting/Analytics - Inventory System</title>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
 	<link rel="stylesheet" href="/css/topheader.css">
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-	<meta name="csrf-token" content="{{ csrf_token() }}">
 	<style>
+		body {
+			background: #f8f9fa;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+		}
+
 		.forecasting-container {
 			margin-left: 220px;
-			padding: 40px;
+			padding: 30px 40px;
 			padding-top: 90px;
-			background: #fafbfc;
+			background: #f8f9fa;
 			min-height: 100vh;
+		}
+
+		.page-header {
+			margin-bottom: 30px;
+		}
+
+		.page-header h2 {
+			font-size: 1.75rem;
+			font-weight: 600;
+			color: #2c3e50;
+			margin-bottom: 5px;
+		}
+
+		.page-header p {
+			color: #6c757d;
+			margin: 0;
+			font-size: 0.95rem;
 		}
 
 		.stats-card {
 			background: white;
-			border-radius: 10px;
-			padding: 20px;
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			border-radius: 12px;
+			padding: 24px;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+			margin-bottom: 24px;
+			border: 1px solid #e9ecef;
+			transition: transform 0.2s, box-shadow 0.2s;
+		}
+
+		.stats-card:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+		}
+
+		.stats-card h4 {
+			font-size: 1.1rem;
+			font-weight: 600;
+			color: #2c3e50;
 			margin-bottom: 20px;
+			display: flex;
+			align-items: center;
+			gap: 8px;
 		}
 
 		.stat-number {
-			font-size: 2rem;
-			font-weight: bold;
-			color: #007bff;
+			font-size: 1.75rem;
+			font-weight: 700;
+			color: #2c3e50;
+			margin-bottom: 8px;
 		}
 
 		.stat-label {
 			color: #6c757d;
-			font-size: 0.9rem;
+			font-size: 0.875rem;
+			font-weight: 500;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
 		}
 
 		.growth-positive {
 			color: #28a745;
+			font-weight: 600;
 		}
 
 		.growth-negative {
 			color: #dc3545;
+			font-weight: 600;
+		}
+
+		.chart-box {
+			background: white;
+			border-radius: 12px;
+			padding: 24px;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+			border: 1px solid #e9ecef;
+			margin-bottom: 24px;
+		}
+
+		.chart-box h5 {
+			font-size: 1.1rem;
+			font-weight: 600;
+			color: #2c3e50;
+			margin-bottom: 20px;
+			display: flex;
+			align-items: center;
+			gap: 8px;
 		}
 
 		.chart-container {
 			position: relative;
-			height: 400px;
+			height: 320px;
 		}
 
-		/* Bootstrap 4 Toast Styles */
+		.sales-form {
+			background: white;
+			border-radius: 12px;
+			padding: 28px;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+			border: 1px solid #e9ecef;
+		}
+
+		.sales-form h4 {
+			font-size: 1.1rem;
+			font-weight: 600;
+			color: #2c3e50;
+			margin-bottom: 24px;
+		}
+
+		.form-group label {
+			font-weight: 500;
+			color: #495057;
+			margin-bottom: 8px;
+			font-size: 0.9rem;
+		}
+
+		.form-control {
+			border-radius: 8px;
+			border: 1px solid #dee2e6;
+			padding: 10px 14px;
+			font-size: 0.9rem;
+		}
+
+		.form-control:focus {
+			border-color: #007bff;
+			box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.15);
+		}
+
+		/* Enhanced select dropdown styling */
+		select.form-control {
+			cursor: pointer;
+			appearance: none;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+			background-repeat: no-repeat;
+			background-position: right 12px center;
+			padding-right: 35px;
+			white-space: normal;
+			height: auto;
+			min-height: 44px;
+		}
+
+		select.form-control option {
+			padding: 12px 10px;
+			font-size: 0.9rem;
+			white-space: normal;
+			word-wrap: break-word;
+			line-height: 1.5;
+		}
+
+		/* Fix for dropdown option display */
+		#product_id {
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		/* Stock info styling */
+		#stockInfo {
+			display: block;
+			margin-top: 6px;
+			font-size: 0.85rem;
+		}
+
+		.btn-primary {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			border: none;
+			padding: 12px 28px;
+			font-weight: 600;
+			border-radius: 8px;
+			transition: transform 0.2s, box-shadow 0.2s;
+		}
+
+		.btn-primary:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+		}
+
+		.table {
+			font-size: 0.9rem;
+		}
+
+		.table thead th {
+			border-top: none;
+			border-bottom: 2px solid #dee2e6;
+			color: #495057;
+			font-weight: 600;
+			text-transform: uppercase;
+			font-size: 0.8rem;
+			letter-spacing: 0.5px;
+			padding: 12px;
+		}
+
+		.table tbody td {
+			padding: 14px 12px;
+			vertical-align: middle;
+		}
+
+		.table-hover tbody tr:hover {
+			background-color: #f8f9fa;
+		}
+
+		.badge {
+			padding: 6px 12px;
+			font-weight: 600;
+			border-radius: 6px;
+			font-size: 0.75rem;
+		}
+
+		.forecast-legend {
+			display: flex;
+			gap: 20px;
+			margin-top: 10px;
+		}
+
+		.legend-item {
+			display: flex;
+			align-items: center;
+			gap: 5px;
+		}
+
+		.legend-color {
+			width: 20px;
+			height: 3px;
+		}
+
 		.toast {
 			opacity: 0;
 			max-width: 350px;
@@ -102,124 +296,178 @@
 			max-width: 100%;
 		}
 
-		.stats-card {
-			background: white;
-			border-radius: 10px;
-			padding: 20px;
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-			margin-bottom: 20px;
+		.section-divider {
+			border-top: 2px solid #e9ecef;
+			margin: 40px 0;
 		}
 
-		.sales-form {
-			background: white;
-			border-radius: 10px;
-			padding: 20px;
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+		/* Chart boxes styling */
+		.charts-row {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+			gap: 24px;
+			margin-bottom: 32px;
 		}
 
-		.btn-primary {
-			background-color: #007bff;
-			border: none;
-		}
-
-		.btn-primary:hover {
-			background-color: #0056b3;
-		}
-
-		.forecast-legend {
-			display: flex;
-			gap: 20px;
-			margin-top: 10px;
-		}
-
-		.legend-item {
-			display: flex;
-			align-items: center;
-			gap: 5px;
-		}
-
-		.legend-color {
-			width: 20px;
-			height: 3px;
+		@media (max-width: 992px) {
+			.charts-row {
+				grid-template-columns: 1fr;
+			}
 		}
 	</style>
 </head>
 
+
+<style>
+.dashboard-gradient {
+	background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
+	min-height: 100vh;
+}
+.dashboard-title {
+	font-size: 2.3rem;
+	font-weight: 800;
+	margin-bottom: 0.2em;
+	letter-spacing: -1px;
+	color: #18181b;
+}
+.dashboard-subtitle {
+	color: #6366f1;
+	font-size: 1.1rem;
+	margin-bottom: 2.5rem;
+	font-weight: 500;
+}
+.dashboard-cards {
+	display: flex;
+	gap: 32px;
+	margin-bottom: 32px;
+	flex-wrap: wrap;
+}
+.dashboard-card {
+	flex: 1 1 220px;
+	background: #fff;
+	border-radius: 18px;
+	box-shadow: 0 4px 24px 0 rgba(99,102,241,0.08);
+	padding: 32px 28px 28px 28px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-width: 220px;
+	transition: transform 0.18s cubic-bezier(.4,2,.6,1), box-shadow 0.18s cubic-bezier(.4,2,.6,1);
+	border: none;
+	position: relative;
+	cursor: pointer;
+}
+.dashboard-card:hover {
+	transform: translateY(-7px) scale(1.03);
+	box-shadow: 0 8px 32px 0 rgba(99,102,241,0.16);
+}
+.dashboard-card .icon {
+	width: 48px;
+	height: 48px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 2.1rem;
+	margin-bottom: 10px;
+}
+.dashboard-card .main {
+	font-size: 2rem;
+	font-weight: 700;
+	color: #18181b;
+	margin-bottom: 0.2em;
+}
+.dashboard-card .desc {
+	font-size: 1.08rem;
+	color: #6366f1;
+	font-weight: 600;
+	margin-bottom: 0.5em;
+}
+.dashboard-card .sub {
+	font-size: 1rem;
+	color: #888;
+	font-weight: 400;
+}
+.dashboard-card .trend-up {
+	color: #22c55e;
+	font-weight: 600;
+	font-size: 1.02rem;
+}
+.dashboard-card .trend-down {
+	color: #ef4444;
+	font-weight: 600;
+	font-size: 1.02rem;
+}
+.dashboard-card .status-excellent { color: #22c55e; font-weight: 600; }
+.dashboard-card .status-good { color: #3b82f6; font-weight: 600; }
+.dashboard-card .status-fair { color: #f59e0b; font-weight: 600; }
+.dashboard-card .status-pending { color: #888; font-weight: 600; }
+.dashboard-cards-row {
+	display: flex;
+	gap: 32px;
+	margin-bottom: 32px;
+	flex-wrap: wrap;
+}
+.dashboard-cards-row .dashboard-card {
+	min-width: 180px;
+	flex: 1 1 180px;
+}
+</style>
 <body>
 	@include('components.topheader')
 	@include('components.sidebar')
-
-	<div class="forecasting-container">
-		<div class="container-fluid">
-			<h2 class="mb-4">📈 SARIMA Forecasting & Sales Analytics</h2>
-
-			<!-- Statistics Cards -->
-			<div class="row">
-				<div class="col-md-3">
-					<div class="stats-card text-center">
-						<div class="stat-number" data-stat="current-month-revenue">₱{{ number_format($salesStats['current_month_revenue'], 2) }}</div>
-						<div class="stat-label">This Month Revenue</div>
-						@if($salesStats['growth_percentage'] != 0)
-						<small class="growth-{{ $salesStats['growth_percentage'] > 0 ? 'positive' : 'negative' }}" data-stat="growth-percentage">
-							{{ $salesStats['growth_percentage'] > 0 ? '+' : '' }}{{ $salesStats['growth_percentage'] }}% from last month
-						</small>
-						@endif
-					</div>
+	<div class="dashboard-gradient" style="margin-left: 220px; padding: 40px; padding-top: 90px;">
+		<div class="dashboard-title">SARIMA Forecasting/Analytics</div>
+		<div class="dashboard-subtitle">Advanced sales prediction and inventory management insights</div>
+		<div class="dashboard-cards">
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #e0fce6; color: #22c55e;">&#8369;</div>
+				<div class="desc">This Month Revenue</div>
+				<div class="main">₱{{ number_format($salesStats['current_month_revenue'], 2) }}</div>
+				@if($salesStats['growth_percentage'] != 0)
+				<div class="{{ $salesStats['growth_percentage'] > 0 ? 'trend-up' : 'trend-down' }}">
+					{{ $salesStats['growth_percentage'] > 0 ? '+' : '' }}{{ $salesStats['growth_percentage'] }}% from last month
 				</div>
-				<div class="col-md-3">
-					<div class="stats-card text-center">
-						<div class="stat-number" data-stat="total-sales-count">{{ $salesStats['total_sales_count'] }}</div>
-						<div class="stat-label">Total Sales This Month</div>
-					</div>
-				</div>
-				<div class="col-md-3">
-					<div class="stats-card text-center">
-						<div class="stat-number">₱{{ number_format($salesStats['average_order_value'], 2) }}</div>
-						<div class="stat-label">Average Order Value</div>
-					</div>
-				</div>
-				<div class="col-md-3">
-					<div class="stats-card text-center">
-						<div class="stat-number">{{ count($forecast['predicted']) }}</div>
-						<div class="stat-label">Months Forecasted</div>
-					</div>
-				</div>
+				@endif		
 			</div>
-
-			<!-- Enhanced SARIMA Analysis Dashboard -->
-			<div class="row mb-4">
-				<div class="col-12">
-					<div class="stats-card">
-						<h4>🔬 SARIMA Analysis & System Performance</h4>
-						<div class="row">
-							<div class="col-md-3">
-								<div class="text-center">
-									<div class="stat-number text-info">{{ isset($seasonalityAnalysis) ? $seasonalityAnalysis['trend_direction'] : 'stable' }}</div>
-									<div class="stat-label">Market Trend</div>
-								</div>
-							</div>
-							<div class="col-md-3">
-								<div class="text-center">
-									<div class="stat-number text-success">{{ isset($forecastAccuracy) ? number_format($forecastAccuracy['accuracy_percentage'], 1) : '0' }}%</div>
-									<div class="stat-label">Forecast Accuracy</div>
-								</div>
-							</div>
-							<div class="col-md-3">
-								<div class="text-center">
-									<div class="stat-number text-warning">{{ isset($seasonalityAnalysis) ? number_format($seasonalityAnalysis['seasonality_strength'], 2) : '0' }}</div>
-									<div class="stat-label">Seasonality Index</div>
-								</div>
-							</div>
-							<div class="col-md-3">
-								<div class="text-center">
-									<div class="stat-number text-primary">{{ isset($seasonalityAnalysis) ? number_format($seasonalityAnalysis['yearly_growth_rate'], 1) : '0' }}%</div>
-									<div class="stat-label">Annual Growth Rate</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #e0e7ff; color: #3b82f6;">&#128230;</div>
+				<div class="desc">Total Sales This Month</div>
+				<div class="main">{{ $salesStats['total_sales_count'] }}</div>
 			</div>
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #fef9c3; color: #f59e0b;">&#8369;</div>
+				<div class="desc">Average Order Value</div>
+				<div class="main">₱{{ number_format($salesStats['average_order_value'], 2) }}</div>
+			</div>
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #f3e8ff; color: #a21caf;">&#128200;</div>
+				<div class="desc">Months Forecasted</div>
+				<div class="main">{{ count($forecast['predicted']) }}</div>
+			</div>
+		</div>
+		<div class="dashboard-cards-row">
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #e0e7ff; color: #3b82f6;">&#128200;</div>
+				<div class="desc">Market Trend</div>
+				<div class="main">{{ isset($seasonalityAnalysis) ? $seasonalityAnalysis['trend_direction'] : 'stable' }}</div>
+			</div>
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #e0fce6; color: #22c55e;">&#128202;</div>
+				<div class="desc">Forecast Accuracy</div>
+				<div class="main">{{ isset($forecastAccuracy) ? number_format($forecastAccuracy['accuracy_percentage'], 1) : '0' }}%</div>
+			</div>
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #fef9c3; color: #f59e0b;">&#128197;</div>
+				<div class="desc">Seasonality Index</div>
+				<div class="main">{{ isset($seasonalityAnalysis) ? number_format($seasonalityAnalysis['seasonality_strength'], 2) : '0' }}</div>
+			</div>
+			<div class="dashboard-card" tabindex="0">
+				<div class="icon" style="background: #f3e8ff; color: #a21caf;">&#128200;</div>
+				<div class="desc">Annual Growth Rate</div>
+				<div class="main">{{ isset($seasonalityAnalysis) ? number_format($seasonalityAnalysis['yearly_growth_rate'], 1) : '0' }}%</div>
+			</div>
+		</div>
 
 			<!-- Automated Restocking Recommendations -->
 			@if(isset($restockingRecommendations))
@@ -309,25 +557,141 @@
 			</div>
 			@endif
 
-			<!-- SARIMA Forecast Chart -->
-			<div class="row">
-				<div class="col-12">
+			<!-- Actual Sales and Forecast Charts -->
+			<div class="charts-row">
+				<!-- Actual Sales Chart -->
+				<div class="chart-box">
+					<h5>📊 Actual Sales History</h5>
 					<div class="chart-container">
-						<h4>📊 Enhanced SARIMA Forecast - Revenue Prediction with Confidence Intervals</h4>
+						<canvas id="actualSalesChart"></canvas>
+					</div>
+				</div>
+				
+				<!-- Sales Forecast Chart -->
+				<div class="chart-box">
+					<h5>🔮 SARIMA Forecast</h5>
+					<div class="chart-container">
 						<canvas id="forecastChart"></canvas>
-						<div class="forecast-legend">
-							<div class="legend-item">
-								<div class="legend-color" style="background-color: #007bff;"></div>
-								<span>Historical Data</span>
-							</div>
-							<div class="legend-item">
-								<div class="legend-color" style="background-color: #28a745;"></div>
-								<span>SARIMA Forecast</span>
-							</div>
-							<div class="legend-item">
-								<div class="legend-color" style="background-color: rgba(40, 167, 69, 0.3);"></div>
-								<span>95% Confidence Interval</span>
-							</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Historical Sales Summary -->
+			<div class="row mb-4">
+				<div class="col-12">
+					<div class="stats-card">
+						<h4>📅 Historical Sales Summary - Previous Months</h4>
+						<div class="table-responsive">
+							<table class="table table-hover">
+								<thead class="thead-light">
+									<tr>
+										<th>Month</th>
+										<th>Total Revenue</th>
+										<th>Total Quantity Sold</th>
+										<th>Growth vs Previous Month</th>
+										<th>Status</th>
+									</tr>
+								</thead>
+								<tbody>
+									@if(isset($forecast['historical']) && isset($forecast['months']))
+									@php
+										$previousRevenue = null;
+										$displayedMonths = [];
+										$totalRevenue = 0;
+										$totalQuantity = 0;
+									@endphp
+									@foreach($forecast['months'] as $index => $month)
+										@php
+											$revenue = $forecast['historical'][$index] ?? 0;
+											
+											// Only show months with actual sales data
+											if ($revenue <= 0) {
+												continue;
+											}
+											
+											$growth = null;
+											$growthPercentage = 0;
+											
+											if ($previousRevenue !== null && $previousRevenue > 0) {
+												$growth = $revenue - $previousRevenue;
+												$growthPercentage = ($growth / $previousRevenue) * 100;
+											}
+											
+											$salesData = \App\Models\Sale::where('month_year', $month)->sum('quantity_sold');
+											if ($month == \Carbon\Carbon::now()->format('Y-m')) {
+												$totalRevenue += $salesStats['current_month_revenue'];
+											} else {
+												$totalRevenue += $revenue;
+											}
+											$totalQuantity += $salesData;
+											$displayedMonths[] = $month;
+										@endphp
+										<tr>
+											<td><strong>{{ Carbon\Carbon::parse($month)->format('M Y') }}</strong></td>
+											@if($month == \Carbon\Carbon::now()->format('Y-m'))
+												<td><strong>₱{{ number_format($salesStats['current_month_revenue'], 2) }}</strong></td>
+											@else
+												<td><strong>₱{{ number_format($revenue, 2) }}</strong></td>
+											@endif
+											<td>{{ number_format($salesData) }} units</td>
+											<td>
+												@if($growth !== null)
+													@if($growth > 0)
+														<span class="text-success">
+															<i class="fas fa-arrow-up"></i> ₱{{ number_format(abs($growth), 2) }}
+															(+{{ number_format($growthPercentage, 1) }}%)
+														</span>
+													@elseif($growth < 0)
+														<span class="text-danger">
+															<i class="fas fa-arrow-down"></i> ₱{{ number_format(abs($growth), 2) }}
+															({{ number_format($growthPercentage, 1) }}%)
+														</span>
+													@else
+														<span class="text-muted">No change</span>
+													@endif
+												@else
+													<span class="text-muted">-</span>
+												@endif
+											</td>
+											<td>
+												@if($revenue > 100000)
+													<span class="badge badge-success">High Sales</span>
+												@elseif($revenue > 50000)
+													<span class="badge badge-info">Moderate Sales</span>
+												@else
+													<span class="badge badge-warning">Low Sales</span>
+												@endif
+											</td>
+										</tr>
+										@php
+											$previousRevenue = $revenue;
+										@endphp
+									@endforeach
+									
+									@if(count($displayedMonths) == 0)
+										<tr>
+											<td colspan="5" class="text-center text-muted">
+												<em>No historical sales data available. Please generate sales data using the seeder.</em>
+											</td>
+										</tr>
+									@endif
+									@endif
+								</tbody>
+								@if(isset($displayedMonths) && count($displayedMonths) > 0)
+								<tfoot class="thead-light">
+									<tr>
+										<th>Total</th>
+										<th><strong>₱{{ number_format($totalRevenue, 2) }}</strong></th>
+										<th>{{ number_format($totalQuantity) }} units</th>
+										<th colspan="2">
+											<span class="text-muted">
+												Avg: ₱{{ number_format(count($displayedMonths) > 0 ? $totalRevenue / count($displayedMonths) : 0, 2) }} / month
+											</span>
+										</th>
+									</tr>
+								</tfoot>
+								@endif
+							</table>
 						</div>
 					</div>
 				</div>
@@ -345,8 +709,7 @@
 										<th>Month</th>
 										<th>Predicted Revenue</th>
 										<th>Confidence Range (95%)</th>
-										<th>Trend Component</th>
-										<th>Seasonal Component</th>
+                                        
 										<th>Recommendation</th>
 									</tr>
 								</thead>
@@ -364,16 +727,7 @@
 											</span>
 											@endif
 										</td>
-										<td>
-											@if(isset($forecast['trend_component'][$month]))
-											₱{{ number_format($forecast['trend_component'][$month], 0) }}
-											@endif
-										</td>
-										<td>
-											@if(isset($forecast['seasonal_component'][$month]))
-											₱{{ number_format($forecast['seasonal_component'][$month], 0) }}
-											@endif
-										</td>
+                                        
 										<td>
 											@php
 											$currentMonth = \Carbon\Carbon::now();
@@ -417,25 +771,25 @@
 									</tr>
 								</thead>
 								<tbody>
-									@foreach(array_slice($demandForecast, 0, 10) as $productId => $forecast)
+									@foreach(array_slice($demandForecast, 0, 10) as $productId => $productForecast)
 									<tr>
-										<td><strong>{{ $forecast['product_name'] }}</strong></td>
-										<td>{{ $forecast['current_stock'] }}</td>
-										<td>{{ number_format($forecast['forecasted_demand'], 1) }}/month</td>
+										<td><strong>{{ $productForecast['product_name'] }}</strong></td>
+										<td>{{ $productForecast['current_stock'] }}</td>
+										<td>{{ number_format($productForecast['forecasted_demand'], 1) }}/month</td>
 										<td>
-											@if($forecast['risk_level'] === 'HIGH')
+											@if($productForecast['risk_level'] === 'HIGH')
 											<span class="badge badge-danger">HIGH</span>
-											@elseif($forecast['risk_level'] === 'MEDIUM')
+											@elseif($productForecast['risk_level'] === 'MEDIUM')
 											<span class="badge badge-warning">MEDIUM</span>
 											@else
 											<span class="badge badge-success">LOW</span>
 											@endif
 										</td>
-										<td>{{ $forecast['days_until_stockout'] > 365 ? '365+' : $forecast['days_until_stockout'] }} days</td>
+										<td>{{ $productForecast['days_until_stockout'] > 365 ? '365+' : $productForecast['days_until_stockout'] }} days</td>
 										<td>
 											<small>
-												@if($forecast['recommended_order_quantity'] > 0)
-												Order {{ $forecast['recommended_order_quantity'] }} units
+												@if($productForecast['recommended_order_quantity'] > 0)
+												Order {{ $productForecast['recommended_order_quantity'] }} units
 												@else
 												Adequate stock
 												@endif
@@ -451,6 +805,9 @@
 			</div>
 			@endif
 
+			<!-- Section Divider -->
+			<div class="section-divider"></div>
+
 			<div class="row">
 				<!-- Record New Sale -->
 				<div class="col-md-6">
@@ -461,40 +818,59 @@
 							<div class="form-group">
 								<label for="product_id">Product</label>
 								<select class="form-control" id="product_id" name="product_id" required onchange="simpleCalculate()">
-									<option value="">Select a product...</option>
+									<option value="">-- Select a product --</option>
 									@php
 									$products = \App\Models\Product::all();
 									@endphp
 									@foreach($products as $product)
-									<option value="{{ $product->id }}" data-price="{{ $product->price }}" data-stock="{{ $product->stock }}">
-										{{ $product->name }} (Stock: {{ $product->stock }}) - ₱{{ number_format($product->price, 2) }}
+									<option value="{{ $product->id }}" 
+											data-price="{{ $product->price }}" 
+											data-stock="{{ $product->stock }}">
+										{{ $product->name }} (Qty: {{ $product->stock }}, Price: ₱{{ number_format($product->price, 2) }})
 									</option>
 									@endforeach
 								</select>
+								<small class="text-muted">Choose a product from inventory</small>
 							</div>
 							<div class="form-group">
 								<label for="quantity_sold">Quantity Sold</label>
-								<input type="number" class="form-control" id="quantity_sold" name="quantity_sold" min="1" required
-									oninput="simpleCalculate()" onchange="simpleCalculate()" onkeyup="simpleCalculate()">
-								<small class="text-muted" id="stockInfo"></small>
+								<input type="number" 
+									   class="form-control" 
+									   id="quantity_sold" 
+									   name="quantity_sold" 
+									   min="1" 
+									   placeholder="Enter quantity"
+									   required
+									   oninput="simpleCalculate()" 
+									   onchange="simpleCalculate()" 
+									   onkeyup="simpleCalculate()">
+								<small class="text-muted" id="stockInfo">Select a product first</small>
 							</div>
 							<div class="form-group">
 								<label for="sale_date">Sale Date</label>
-								<input type="date" class="form-control" id="sale_date" name="sale_date" value="{{ date('Y-m-d') }}" required>
+								<input type="date" 
+									   class="form-control" 
+									   id="sale_date" 
+									   name="sale_date" 
+									   value="{{ date('Y-m-d') }}" 
+									   required>
+								<small class="text-muted">Date of the transaction</small>
 							</div>
 							<div class="form-group">
 								<label>Total Amount</label>
-								<div class="input-group">
+								<div class="input-group" style="box-shadow: 0 2px 4px rgba(0,0,0,0.08); border-radius: 8px; overflow: hidden;">
 									<div class="input-group-prepend">
-										<span class="input-group-text">₱</span>
+										<span class="input-group-text" style="background: #f8f9fa; border: 1px solid #dee2e6; border-right: none; font-weight: 600;">₱</span>
 									</div>
-									<div class="form-control bg-light" style="font-size: 1.1rem; font-weight: 600; display: flex; align-items: center;">
+									<div class="form-control bg-light" style="font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; border-left: none; background: #f8f9fa; border: 1px solid #dee2e6;">
 										<span id="totalAmount" style="color: #6c757d;">0.00</span>
 									</div>
 								</div>
-								<small class="form-text text-info">Amount is calculated automatically based on product price and quantity</small>
+								<small class="form-text text-muted">💡 Calculated automatically: Product Price × Quantity</small>
 							</div>
-							<button type="button" id="recordSaleBtn" class="btn btn-primary btn-block">Record Sale</button>
+							<button type="button" id="recordSaleBtn" class="btn btn-primary btn-block" style="margin-top: 20px; padding: 14px; font-size: 1rem;">
+								<strong>💾 Record Sale</strong>
+							</button>
 						</form>
 					</div>
 				</div>
@@ -606,128 +982,172 @@
 
 	<!-- Pass PHP data to JavaScript -->
 	<script type="text/javascript">
-		window.forecastData = <?php echo json_encode($forecast); ?>;
+		window.salesTrendData = @json($salesTrend ?? ['months' => [], 'actual' => [], 'forecast' => []]);
+		window.sarimaForecastData = @json($forecast ?? ['months' => [], 'predicted' => []]);
 	</script>
 
 	<script>
-		// Enhanced SARIMA Forecast Chart with Confidence Intervals
-		const ctx = document.getElementById('forecastChart').getContext('2d');
-		const forecastData = window.forecastData;
-
-		// Prepare chart data with confidence intervals
-		const allMonths = [...(forecastData.months || []), ...Object.keys(forecastData.predicted || {})];
-		const historicalData = [...(forecastData.historical || []), ...Array(Object.keys(forecastData.predicted || {}).length).fill(null)];
-		const predictedData = [...Array((forecastData.historical || []).length).fill(null), ...Object.values(forecastData.predicted || {})];
-
-		// Confidence interval data
-		const upperBoundData = [];
-		const lowerBoundData = [];
-
-		if (forecastData.confidence_intervals) {
-			// Fill historical part with nulls
-			for (let i = 0; i < (forecastData.historical || []).length; i++) {
-				upperBoundData.push(null);
-				lowerBoundData.push(null);
-			}
-
-			// Add confidence interval data for forecast period
-			Object.values(forecastData.confidence_intervals).forEach(interval => {
-				upperBoundData.push(interval.upper);
-				lowerBoundData.push(interval.lower);
-			});
-		}
-
-		const chart = new Chart(ctx, {
-			type: 'line',
-			data: {
-				labels: allMonths,
-				datasets: [{
-						label: 'Historical Revenue',
-						data: historicalData,
-						borderColor: '#007bff',
-						backgroundColor: 'rgba(0, 123, 255, 0.1)',
-						borderWidth: 3,
-						fill: false,
-						tension: 0.1,
-						pointRadius: 4,
-						pointHoverRadius: 6
-					},
-					{
-						label: 'SARIMA Forecast',
-						data: predictedData,
-						borderColor: '#28a745',
-						backgroundColor: 'rgba(40, 167, 69, 0.1)',
-						borderWidth: 3,
-						borderDash: [8, 4],
-						fill: false,
-						tension: 0.1,
-						pointRadius: 5,
-						pointHoverRadius: 7
-					},
-					{
-						label: '95% Confidence Upper',
-						data: upperBoundData,
-						borderColor: 'rgba(40, 167, 69, 0.3)',
-						backgroundColor: 'rgba(40, 167, 69, 0.1)',
-						borderWidth: 1,
-						borderDash: [2, 2],
-						fill: '+1',
-						tension: 0.1,
-						pointRadius: 0
-					},
-					{
-						label: '95% Confidence Lower',
-						data: lowerBoundData,
-						borderColor: 'rgba(40, 167, 69, 0.3)',
-						backgroundColor: 'rgba(40, 167, 69, 0.1)',
-						borderWidth: 1,
-						borderDash: [2, 2],
-						fill: false,
-						tension: 0.1,
-						pointRadius: 0
+		// Simple Actual Sales and Forecast Charts
+		document.addEventListener('DOMContentLoaded', function() {
+			const salesData = window.salesTrendData;
+			// Actual Sales Chart (Historical Only)
+			const actualCtx = document.getElementById('actualSalesChart');
+			if (actualCtx && salesData) {
+				const actualMonths = [];
+				const actualValues = [];
+				salesData.months.forEach((month, index) => {
+					if (salesData.actual[index] !== null) {
+						actualMonths.push(month);
+						actualValues.push(salesData.actual[index]);
 					}
-				]
-			},
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				interaction: {
-					intersect: false,
-					mode: 'index'
-				},
-				scales: {
-					y: {
-						beginAtZero: true,
-						grid: {
-							color: 'rgba(0,0,0,0.1)'
+				});
+				new Chart(actualCtx, {
+					type: 'line',
+					data: {
+						labels: actualMonths,
+						datasets: [{
+							label: 'Actual Sales',
+							data: actualValues,
+							borderColor: '#007bff',
+							backgroundColor: 'rgba(0, 123, 255, 0.1)',
+							borderWidth: 3,
+							fill: true,
+							tension: 0.4,
+							pointRadius: 5,
+							pointHoverRadius: 7,
+							pointBackgroundColor: '#007bff'
+						}]
+					},
+					options: {
+						responsive: true,
+						maintainAspectRatio: false,
+						plugins: {
+							legend: {
+								display: false
+							},
+							tooltip: {
+								callbacks: {
+									label: function(context) {
+										return 'Revenue: ₱' + new Intl.NumberFormat('en-PH').format(context.parsed.y);
+									}
+								}
+							}
 						},
-						ticks: {
-							callback: function(value) {
-								return '₱' + new Intl.NumberFormat().format(value);
+						scales: {
+							y: {
+								beginAtZero: true,
+								grid: {
+									color: 'rgba(0,0,0,0.05)'
+								},
+								ticks: {
+									callback: function(value) {
+										return '₱' + new Intl.NumberFormat('en-PH', {
+											notation: 'compact',
+											compactDisplay: 'short'
+										}).format(value);
+									},
+									font: {
+										size: 11
+									}
+								}
+							},
+							x: {
+								grid: {
+									display: false
+								},
+								ticks: {
+									maxRotation: 45,
+									minRotation: 45,
+									font: {
+										size: 10
+									}
+								}
 							}
 						}
-					},
-					x: {
-						grid: {
-							color: 'rgba(0,0,0,0.1)'
-						}
 					}
-				},
-				plugins: {
-					legend: {
-						display: false // We have custom legend
+				});
+			}
+			// Forecast Chart (SARIMA Predictions)
+			const forecastCtx = document.getElementById('forecastChart');
+			const sarimaData = window.sarimaForecastData;
+			if (forecastCtx && sarimaData && sarimaData.predicted) {
+				const forecastMonths = Object.keys(sarimaData.predicted).map(month => {
+					const date = new Date(month + '-01');
+					return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+				});
+				const forecastValues = Object.values(sarimaData.predicted);
+				new Chart(forecastCtx, {
+					type: 'line',
+					data: {
+						labels: forecastMonths,
+						datasets: [{
+							label: 'SARIMA Forecast',
+							data: forecastValues,
+							borderColor: '#28a745',
+							backgroundColor: 'rgba(40, 167, 69, 0.1)',
+							borderWidth: 3,
+							borderDash: [8, 4],
+							fill: true,
+							tension: 0.4,
+							pointRadius: 5,
+							pointHoverRadius: 7,
+							pointBackgroundColor: '#28a745',
+							pointStyle: 'circle'
+						}]
 					},
-					tooltip: {
-						callbacks: {
-							label: function(context) {
-								return context.dataset.label + ': ₱' + context.parsed.y.toLocaleString();
+					options: {
+						responsive: true,
+						maintainAspectRatio: false,
+						plugins: {
+							legend: {
+								display: false
+							},
+							tooltip: {
+								callbacks: {
+									label: function(context) {
+										return 'Predicted: ₱' + new Intl.NumberFormat('en-PH').format(context.parsed.y);
+									}
+								}
+							}
+						},
+						scales: {
+							y: {
+								beginAtZero: true,
+								grid: {
+									color: 'rgba(0,0,0,0.05)'
+								},
+								ticks: {
+									callback: function(value) {
+										return '₱' + new Intl.NumberFormat('en-PH', {
+											notation: 'compact',
+											compactDisplay: 'short'
+										}).format(value);
+									},
+									font: {
+										size: 11
+									}
+								}
+							},
+							x: {
+								grid: {
+									display: false
+								},
+								ticks: {
+									font: {
+										size: 10
+									},
+									maxRotation: 45,
+									minRotation: 45
+								}
 							}
 						}
 					}
-				}
+				});
 			}
 		});
+	</script>
 
+	<script>
 		// Sales form handling
 		$(document).ready(function() {
 			// Product selection change
@@ -815,13 +1235,32 @@
 				return false;
 			}
 
-			// Get CSRF token
-			const csrfToken = $('meta[name="csrf-token"]').attr('content');
+			// Validate quantity does not exceed available stock
+			const selectedProduct = $('#product_id').find(':selected');
+			const availableStock = parseInt(selectedProduct.data('stock'));
+			
+			if (quantity > availableStock) {
+				alert(`Insufficient stock! You entered ${quantity} but only ${availableStock} units are available.\n\nPlease enter a quantity of ${availableStock} or less.`);
+				$('#quantity_sold').val(''); // Clear the invalid input
+				$('#quantity_sold').focus(); // Focus back on quantity field
+				return false;
+			}
+
+			// Get CSRF token from multiple sources for reliability
+			let csrfToken = $('meta[name="csrf-token"]').attr('content');
+			
+			// Fallback: try to get from hidden input in form
+			if (!csrfToken) {
+				csrfToken = $('input[name="_token"]').val();
+			}
+			
 			console.log('CSRF Token:', csrfToken);
 
 			if (!csrfToken) {
 				console.error('CSRF token not found!');
-				alert('Security token not found. Please refresh the page.');
+				alert('Security token not found. Please refresh the page (Press F5 or Ctrl+R).');
+				// Auto-refresh after alert
+				setTimeout(() => location.reload(), 1000);
 				return false;
 			}
 
@@ -991,7 +1430,7 @@
 
 			const selectedOption = productSelect.options[productSelect.selectedIndex];
 			const price = parseFloat(selectedOption.getAttribute('data-price')) || 0;
-			const stock = selectedOption.getAttribute('data-stock') || '';
+			const stock = parseInt(selectedOption.getAttribute('data-stock')) || 0;
 			const quantity = parseFloat(quantityInput.value) || 0;
 
 			console.log('Values:', {
@@ -1000,12 +1439,26 @@
 				stock
 			});
 
-			// Update stock info
+			// Update stock info with validation
 			if (productSelect.value && stock) {
-				stockElement.textContent = 'Available stock: ' + stock;
+				if (quantity > stock) {
+					stockElement.textContent = '⚠️ Insufficient stock! Available: ' + stock + ' (You entered: ' + quantity + ')';
+					stockElement.style.color = '#dc3545'; // Red
+					stockElement.style.fontWeight = 'bold';
+					totalElement.style.color = '#dc3545';
+				} else if (quantity > 0) {
+					stockElement.textContent = '✓ Available stock: ' + stock;
+					stockElement.style.color = '#28a745'; // Green
+					stockElement.style.fontWeight = 'normal';
+				} else {
+					stockElement.textContent = 'Available stock: ' + stock;
+					stockElement.style.color = '#6c757d'; // Gray
+					stockElement.style.fontWeight = 'normal';
+				}
 				quantityInput.setAttribute('max', stock);
 			} else {
 				stockElement.textContent = '';
+				stockElement.style.color = '#6c757d';
 				quantityInput.removeAttribute('max');
 			}
 
@@ -1013,7 +1466,14 @@
 			if (price > 0 && quantity > 0) {
 				const total = price * quantity;
 				totalElement.textContent = total.toFixed(2);
-				totalElement.style.color = '#28a745';
+				
+				// Color based on stock validation
+				if (quantity > stock) {
+					totalElement.style.color = '#dc3545'; // Red if exceeds stock
+				} else {
+					totalElement.style.color = '#28a745'; // Green if valid
+				}
+				
 				console.log('✓ Total calculated:', total.toFixed(2));
 			} else {
 				totalElement.textContent = '0.00';

@@ -15,7 +15,7 @@ class Sale extends Model
         'unit_price',
         'total_amount',
         'sale_date',
-        'sale_month'
+        'month_year'
     ];
 
     protected $casts = [

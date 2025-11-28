@@ -15,20 +15,20 @@
     </li>
     @if(Auth::check() && Auth::user()->role !== 'staff')
     <li>
-        <a href="/forecasting" class="{{ request()->is('forecasting') ? 'active' : '' }}">
-            <span style="vertical-align: middle; margin-right: 10px; color: #111;">
-                <!-- Forecasting Icon -->
-                <svg width="20" height="20" fill="none" stroke="#111" stroke-width="1.7" viewBox="0 0 24 24">
-                    <path d="M3 17l6-6 4 4 8-8" />
-                    <circle cx="17" cy="7" r="1.5" />
+        <a href="/forecasting" class="{{ request()->is('forecasting') ? 'active' : '' }}" title="Forecasting/Analytics" style="display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.93rem;">
+            <span style="display: flex; align-items: center; flex-shrink: 0;">
+                <!-- Modern Forecasting Icon -->
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="margin-right: 4px;">
+                    <polyline points="3 17 9 11 13 15 21 7" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" />
+                    <circle cx="21" cy="7" r="1.5" :fill="'currentColor'" />
                 </svg>
             </span>
-            Forecasting
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 180px;">Forecasting/Analytics</span>
         </a>
     </li>
     @endif
     <li>
-        <a href="/inventory" class="{{ request()->is('inventory') ? 'active' : '' }}">
+        <a href="/inventory" class="{{ request()->is('inventory') ? 'active' : '' }}" style="display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.93rem;">
             <span style="vertical-align: middle; margin-right: 10px; color: #111;">
                 <!-- Inventory Icon -->
                 <svg width="20" height="20" fill="none" stroke="#111" stroke-width="1.7" viewBox="0 0 24 24">
@@ -40,23 +40,11 @@
         </a>
     </li>
     @if(Auth::check() && Auth::user()->role !== 'staff')
-    <li>
-        <a href="/analytics" class="{{ request()->is('analytics') ? 'active' : '' }}">
-            <span style="vertical-align: middle; margin-right: 10px; color: #111;">
-                <!-- Analytics Icon -->
-                <svg width="20" height="20" fill="none" stroke="#111" stroke-width="1.7" viewBox="0 0 24 24">
-                    <rect x="3" y="12" width="4" height="8" rx="1" />
-                    <rect x="10" y="8" width="4" height="12" rx="1" />
-                    <rect x="17" y="4" width="4" height="16" rx="1" />
-                </svg>
-            </span>
-            Analytics
-        </a>
-    </li>
-    <li>
+    <!-- Analytics tab removed -->
+    <!-- <li>
         <a href="/settings" class="{{ request()->is('settings') ? 'active' : '' }}">
             <span style="vertical-align: middle; margin-right: 10px; color: #111;">
-                <!-- Settings Icon -->
+              
                 <svg width="20" height="20" fill="none" stroke="#111" stroke-width="1.7" viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -64,7 +52,7 @@
             </span>
             Settings
         </a>
-    </li>
+    </li> -->
     @endif
     @if(Auth::check() && Auth::user()->role === 'admin')
     <li>

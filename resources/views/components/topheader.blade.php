@@ -1,28 +1,175 @@
-<header class="top-header">
+<header class="top-header-modern">
+
+    <style>
+    .top-header-modern {
+        width: 100%;
+        background: #ffffff;
+        box-shadow: 0 2px 16px 0 rgba(31,41,55,0.06);
+        padding: 0;
+        min-height: 70px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 2000;
+    }
+    .header-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 48px;
+        min-height: 70px;
+    }
+    .header-text {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .main-title {
+        font-size: 2rem;
+        font-weight: 900;
+        color: #1f2937;
+        letter-spacing: -1px;
+        margin-bottom: 0.1em;
+    }
+    .subtitle {
+        color: #374151;
+        font-size: 1.08rem;
+        font-weight: 500;
+        margin-bottom: 0;
+    }
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+    }
+    .notification-wrapper {
+        position: relative;
+        z-index: 1001;
+    }
+    .notification-bell {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 10px;
+        border-radius: 50%;
+        background: none;
+        transition: background 0.2s;
+        min-width: 44px;
+        min-height: 44px;
+    }
+    .notification-bell:hover {
+        background: #e0e7ff44;
+    }
+    .notification-bell svg {
+        stroke: #6366f1;
+        width: 26px;
+        height: 26px;
+        transition: stroke 0.2s;
+    }
+    .notification-bell span {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: #ef4444;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: bold;
+        border: 2px solid #fff;
+        z-index: 1002;
+    }
+    .notification-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(99,102,241,0.13);
+        min-width: 320px;
+        max-width: 400px;
+        z-index: 1000;
+        margin-top: 8px;
+    }
+    .user-wrapper {
+        position: relative;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: #fff;
+        border-radius: 50px;
+        padding: 6px 18px 6px 10px;
+        box-shadow: 0 2px 8px 0 rgba(99,102,241,0.06);
+        transition: box-shadow 0.18s;
+    }
+    .user-wrapper:hover {
+        box-shadow: 0 4px 16px 0 rgba(99,102,241,0.13);
+    }
+    .user-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #60a5fa 100%);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-right: 6px;
+        box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10);
+    }
+   
+    .user-name {
+        font-weight: 700;
+        color: #23272f;
+        font-size: 1.08rem;
+    }
+    .user-role {
+        color: #6366f1;
+        font-size: 0.98rem;
+        font-weight: 500;
+    }
+    .dropdown-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: #fff;
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+        min-width: 180px;
+        z-index: 1000;
+        border-radius: 12px;
+        margin-top: 8px;
+    }
+    </style>
     <div class="header-content">
         <div class="header-text">
-            <div class="main-title">SARIMA Analytics Dashboard</div>
+            <div class="main-title">SARIMA VISION</div>
             <div class="subtitle">Sales Forecasting &amp; Inventory Management</div>
         </div>
         <div class="header-actions">
-            <div class="notification-wrapper" style="position: relative; z-index: 1001;">
-                <div class="notification-bell"
-                    style="position: relative; display: inline-block; cursor: pointer; padding: 10px; border-radius: 50%; transition: background-color 0.2s; min-width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center;"
-                    onclick="toggleNotificationDropdown(event)"
-                    onmouseover="this.style.backgroundColor='#f5f5f5'"
-                    onmouseout="this.style.backgroundColor='transparent'">
-                    <svg width="22" height="22" fill="none" stroke="#23272f" stroke-width="2" viewBox="0 0 24 24">
+            <div class="notification-wrapper">
+                <div class="notification-bell" onclick="toggleNotificationDropdown(event)">
+                    <svg width="26" height="26" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11c0-3.07-1.64-5.64-5-5.958V4a1 1 0 1 0-2 0v1.042C6.64 5.36 5 7.929 5 11v3.159c0 .538-.214 1.055-.595 1.436L3 17h5m7 0v1a3 3 0 1 1-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     @if(isset($reorderCount) && $reorderCount > 0)
-                    <span style="position: absolute; top: 0px; right: 0px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; border: 2px solid white; z-index: 1002;">
-                        {{ $reorderCount > 9 ? '9+' : $reorderCount }}
-                    </span>
+                    <span>{{ $reorderCount > 9 ? '9+' : $reorderCount }}</span>
                     @endif
                 </div>
-
                 <!-- Notification Dropdown -->
-                <div class="notification-dropdown" id="notificationDropdown" style="display: none; position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 320px; max-width: 400px; z-index: 1000; margin-top: 8px;">
+                <div class="notification-dropdown" id="notificationDropdown">
                     <div style="padding: 12px 16px; border-bottom: 1px solid #eee; font-weight: 600; color: #23272f;">
                         Reorder Notifications
                         @if(isset($reorderCount) && $reorderCount > 0)
@@ -63,13 +210,13 @@
                     </div>
                 </div>
             </div>
-            <div class="user-wrapper" style="position: relative; cursor: pointer;" onclick="toggleDropdown(event)">
+            <div class="user-wrapper" onclick="toggleDropdown(event)">
                 <span class="user-avatar">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
                 <div class="user-info">
                     <span class="user-name">{{ Auth::user()->name }}</span><br>
                     <span class="user-role">{{ ucfirst(Auth::user()->role) }}</span>
                 </div>
-                <div class="dropdown-menu" id="userDropdown" style="display: none; position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid #ddd; box-shadow: 0 2px 8px rgba(0,0,0,0.08); min-width: 180px; z-index: 1000; border-radius: 8px; margin-top: 8px;">
+                <div class="dropdown-menu" id="userDropdown">
                     <div style="padding: 12px 16px; border-bottom: 1px solid #eee;">
                         <div style="font-weight: 600; color: #23272f; font-size: 14px;">{{ Auth::user()->name }}</div>
                         <div style="color: #666; font-size: 12px; margin-top: 2px;">{{ Auth::user()->email }}</div>
@@ -85,7 +232,6 @@
         </div>
     </div>
 </header>
-<link rel="stylesheet" href="/css/topheader.css">
 <script>
     function toggleDropdown(event) {
         event.stopPropagation();

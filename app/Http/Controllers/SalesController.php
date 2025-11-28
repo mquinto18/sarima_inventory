@@ -46,6 +46,9 @@ class SalesController extends Controller
         // Step 8: Performance metrics for system evaluation
         $forecastAccuracy = $this->calculateForecastAccuracy();
 
+        // Step 9: Get sales trend data for charts
+        $salesTrend = \App\Http\Controllers\ProductController::getSalesTrendData();
+
         return view('pages.forecasting', compact(
             'reorderCount',
             'reorderNotifications',
@@ -57,7 +60,8 @@ class SalesController extends Controller
             'seasonalityAnalysis',
             'restockingRecommendations',
             'forecastAccuracy',
-            'preprocessedData'
+            'preprocessedData',
+            'salesTrend'
         ));
     }
 
@@ -75,15 +79,14 @@ class SalesController extends Controller
 
             $product = Product::findOrFail($request->product_id);
             $totalAmount = $request->quantity_sold * $product->price;
-            $saleMonth = Carbon::parse($request->sale_date)->format('Y-m');
-
+            $monthYear = Carbon::parse($request->sale_date)->format('Y-m');
             $sale = Sale::create([
                 'product_id' => $request->product_id,
                 'quantity_sold' => $request->quantity_sold,
                 'unit_price' => $product->price,
                 'total_amount' => $totalAmount,
                 'sale_date' => $request->sale_date,
-                'sale_month' => $saleMonth
+                'month_year' => $monthYear
             ]);
 
             // Update product stock
@@ -103,7 +106,7 @@ class SalesController extends Controller
                     'unit_price' => $product->price,
                     'total_amount' => $totalAmount,
                     'sale_date' => $request->sale_date,
-                    'sale_month' => $saleMonth,
+                    // 'sale_month' => $saleMonth, // No longer stored in DB
                     'remaining_stock' => $product->fresh()->stock
                 ],
                 'updated_statistics' => [
@@ -129,20 +132,16 @@ class SalesController extends Controller
         $startDate = Carbon::now()->subMonths(11)->startOfMonth();
         $endDate = Carbon::now()->endOfMonth();
 
-        // Use sale_month for both filtering and grouping for consistency
-        $startMonth = $startDate->format('Y-m');
-        $endMonth = $endDate->format('Y-m');
-
         return Sale::select(
-            DB::raw('sale_month'),
+            DB::raw('DATE_FORMAT(sale_date, "%Y-%m") as sale_month'),
             DB::raw('SUM(quantity_sold) as total_quantity'),
             DB::raw('SUM(total_amount) as total_revenue'),
             DB::raw('COUNT(DISTINCT product_id) as unique_products')
         )
-            ->where('sale_month', '>=', $startMonth)
-            ->where('sale_month', '<=', $endMonth)
-            ->groupBy('sale_month')
-            ->orderBy('sale_month')
+            ->where('sale_date', '>=', $startDate)
+            ->where('sale_date', '<=', $endDate)
+            ->groupBy(DB::raw('DATE_FORMAT(sale_date, "%Y-%m")'))
+            ->orderBy(DB::raw('DATE_FORMAT(sale_date, "%Y-%m")'))
             ->get()
             ->keyBy('sale_month');
     }
@@ -155,13 +154,14 @@ class SalesController extends Controller
         $currentMonth = Carbon::now()->format('Y-m');
 
         return Sale::select(
-            'products.name',
             'products.id',
+            'products.name',
             DB::raw('SUM(sales.quantity_sold) as total_sold'),
             DB::raw('SUM(sales.total_amount) as total_revenue')
         )
             ->join('products', 'sales.product_id', '=', 'products.id')
-            ->where('sales.sale_month', $currentMonth)
+            ->whereYear('sales.sale_date', substr($currentMonth, 0, 4))
+            ->whereMonth('sales.sale_date', substr($currentMonth, 5, 2))
             ->groupBy('products.id', 'products.name')
             ->orderBy('total_sold', 'desc')
             ->limit($limit)
@@ -173,22 +173,35 @@ class SalesController extends Controller
      */
     public function getSalesStatistics()
     {
-        $thisMonth = Carbon::now()->format('Y-m');
-        $lastMonth = Carbon::now()->subMonth()->format('Y-m');
+        $thisMonth = Carbon::now();
+        $lastMonth = Carbon::now()->subMonth();
 
-        $thisMonthSales = Sale::where('sale_month', $thisMonth)->sum('total_amount');
-        $lastMonthSales = Sale::where('sale_month', $lastMonth)->sum('total_amount');
+        $thisMonthSales = Sale::whereYear('sale_date', $thisMonth->year)
+            ->whereMonth('sale_date', $thisMonth->month)
+            ->sum('total_amount');
+        $lastMonthSales = Sale::whereYear('sale_date', $lastMonth->year)
+            ->whereMonth('sale_date', $lastMonth->month)
+            ->sum('total_amount');
 
-        $growth = $lastMonthSales > 0
-            ? (($thisMonthSales - $lastMonthSales) / $lastMonthSales) * 100
-            : 0;
+        if ($lastMonthSales === null || $lastMonthSales == 0) {
+            $growth = 0;
+        } else {
+            $growth = (($thisMonthSales - $lastMonthSales) / $lastMonthSales) * 100;
+        }
+
+        $totalSalesCount = Sale::whereYear('sale_date', $thisMonth->year)
+            ->whereMonth('sale_date', $thisMonth->month)
+            ->count();
+        $averageOrderValue = Sale::whereYear('sale_date', $thisMonth->year)
+            ->whereMonth('sale_date', $thisMonth->month)
+            ->avg('total_amount') ?? 0;
 
         return [
             'current_month_revenue' => $thisMonthSales,
             'last_month_revenue' => $lastMonthSales,
             'growth_percentage' => round($growth, 2),
-            'total_sales_count' => Sale::where('sale_month', $thisMonth)->count(),
-            'average_order_value' => Sale::where('sale_month', $thisMonth)->avg('total_amount') ?? 0
+            'total_sales_count' => $totalSalesCount,
+            'average_order_value' => $averageOrderValue
         ];
     }
 
@@ -500,23 +513,42 @@ class SalesController extends Controller
         ];
 
         $revenues = array_column($preprocessedData, 'revenue');
+        
+        // Filter out zero revenues for better seasonality calculation
+        $nonZeroRevenues = array_filter($revenues, function($rev) {
+            return $rev > 0;
+        });
 
         // Calculate seasonal indices for each month
         $monthlyTotals = [];
         foreach ($preprocessedData as $data) {
-            $month = Carbon::parse($data['month'])->format('m');
-            if (!isset($monthlyTotals[$month])) {
-                $monthlyTotals[$month] = [];
+            // Only include months with actual sales data
+            if ($data['revenue'] > 0) {
+                $month = Carbon::parse($data['month'])->format('m');
+                if (!isset($monthlyTotals[$month])) {
+                    $monthlyTotals[$month] = [];
+                }
+                $monthlyTotals[$month][] = $data['revenue'];
             }
-            $monthlyTotals[$month][] = $data['revenue'];
         }
 
-        $overallAverage = array_sum($revenues) / count($revenues);
+        // Calculate overall average from non-zero revenues only
+        $overallAverage = count($nonZeroRevenues) > 0 ? 
+            array_sum($nonZeroRevenues) / count($nonZeroRevenues) : 0;
 
+        // Calculate seasonal indices based on actual data
         foreach ($monthlyTotals as $month => $values) {
             $monthAverage = array_sum($values) / count($values);
             $analysis['seasonal_indices'][$month] = $overallAverage > 0 ?
                 $monthAverage / $overallAverage : 1;
+        }
+        
+        // Fill in missing months with neutral seasonal index (1.0)
+        for ($m = 1; $m <= 12; $m++) {
+            $monthStr = str_pad($m, 2, '0', STR_PAD_LEFT);
+            if (!isset($analysis['seasonal_indices'][$monthStr])) {
+                $analysis['seasonal_indices'][$monthStr] = 1.0;
+            }
         }
 
         // Identify peak and low months
@@ -582,47 +614,75 @@ class SalesController extends Controller
             'confidence_intervals' => [],
             'trend_component' => [],
             'seasonal_component' => [],
-            'forecast_horizon' => 6, // 6 months ahead
+            'months' => [],
+            'historical' => [],
+            'forecast_horizon' => 6,
             'model_parameters' => [
-                'p' => 1, // AR order
-                'd' => 1, // Differencing order
-                'q' => 1, // MA order
-                'P' => 1, // Seasonal AR order
-                'D' => 1, // Seasonal differencing order
-                'Q' => 1, // Seasonal MA order
-                's' => 12 // Seasonal period
+                'p' => 1,
+                'd' => 1,
+                'q' => 1,
+                'P' => 1,
+                'D' => 1,
+                'Q' => 1,
+                's' => 12
             ]
         ];
 
-        $revenues = array_column($preprocessedData, 'revenue');
-        $lastRevenue = end($revenues);
-        $trend = $this->calculateTrend($revenues);
-
-        // Generate forecasts for next 6 months
-        for ($i = 1; $i <= 6; $i++) {
-            $futureMonth = Carbon::now()->addMonths($i)->format('Y-m');
-            $monthNumber = Carbon::now()->addMonths($i)->format('m');
-
-            // Apply SARIMA components
-            $trendComponent = $lastRevenue + ($trend * $i);
-            $seasonalIndex = $seasonalityAnalysis['seasonal_indices'][$monthNumber] ?? 1;
-            $seasonalComponent = $trendComponent * $seasonalIndex;
-
-            // Add noise and confidence intervals
-            $predicted = $seasonalComponent;
-            $volatility = $this->calculateVolatility($revenues);
-
-            $forecast['predicted'][$futureMonth] = round($predicted, 2);
-            $forecast['trend_component'][$futureMonth] = round($trendComponent, 2);
-            $forecast['seasonal_component'][$futureMonth] = round($seasonalComponent, 2);
-
-            // 95% confidence intervals
-            $confidence_margin = 1.96 * $volatility * sqrt($i);
-            $forecast['confidence_intervals'][$futureMonth] = [
-                'lower' => round(max(0, $predicted - $confidence_margin), 2),
-                'upper' => round($predicted + $confidence_margin, 2),
-                'confidence_level' => 95
+        // Prepare sales data for Python script
+        $sales = [];
+        foreach ($preprocessedData as $data) {
+            $forecast['months'][] = $data['month'];
+            $forecast['historical'][] = round($data['revenue'], 2);
+            $sales[] = [
+                'month' => $data['month'],
+                'revenue' => (float)$data['revenue']
             ];
+        }
+
+        $input = [
+            'sales' => $sales,
+            'forecast_period' => 6
+        ];
+
+        // Call the Python SARIMA script
+        $pythonScript = base_path('python/sarima_forecast.py');
+        $process = proc_open(
+            'python "' . $pythonScript . '"',
+            [
+                0 => ['pipe', 'r'], // stdin
+                1 => ['pipe', 'w'], // stdout
+                2 => ['pipe', 'w']  // stderr
+            ],
+            $pipes
+        );
+
+        if (is_resource($process)) {
+            fwrite($pipes[0], json_encode($input));
+            fclose($pipes[0]);
+            $output = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            $error = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+            $returnCode = proc_close($process);
+
+            if ($returnCode === 0 && $output) {
+                $sarima = json_decode($output, true);
+                if ($sarima && isset($sarima['months'], $sarima['predicted'])) {
+                    foreach ($sarima['months'] as $idx => $month) {
+                        $forecast['predicted'][$month] = round($sarima['predicted'][$idx], 2);
+                        $forecast['confidence_intervals'][$month] = [
+                            'lower' => isset($sarima['conf_lower'][$idx]) ? round($sarima['conf_lower'][$idx], 2) : null,
+                            'upper' => isset($sarima['conf_upper'][$idx]) ? round($sarima['conf_upper'][$idx], 2) : null,
+                            'confidence_level' => 95
+                        ];
+                    }
+                }
+            } else {
+                // Log error if Python script fails
+                Log::error('SARIMA Python error: ' . $error);
+            }
+        } else {
+            Log::error('Could not start SARIMA Python process.');
         }
 
         return $forecast;
@@ -704,30 +764,8 @@ class SalesController extends Controller
      */
     private function calculateForecastAccuracy()
     {
-        // Compare last month's forecast with actual sales
-        $lastMonth = Carbon::now()->subMonth()->format('Y-m');
-        $actualSales = Sale::whereMonth('sale_date', Carbon::now()->subMonth()->month)
-            ->whereYear('sale_date', Carbon::now()->subMonth()->year)
-            ->sum('total_amount');
-
-        // Get stored forecast (in real implementation, you'd store previous forecasts)
-        $forecastedSales = $actualSales * (0.9 + (rand(0, 20) / 100)); // Simulated for demo
-
-        $accuracy = [
-            'mape' => 0, // Mean Absolute Percentage Error
-            'rmse' => 0, // Root Mean Square Error
-            'accuracy_percentage' => 0,
-            'last_month_actual' => $actualSales,
-            'last_month_forecast' => $forecastedSales
-        ];
-
-        if ($actualSales > 0) {
-            $accuracy['mape'] = abs(($actualSales - $forecastedSales) / $actualSales) * 100;
-            $accuracy['accuracy_percentage'] = max(0, 100 - $accuracy['mape']);
-            $accuracy['rmse'] = sqrt(pow($actualSales - $forecastedSales, 2));
-        }
-
-        return $accuracy;
+        // Use the same calculation from ProductController for consistency
+        return \App\Http\Controllers\ProductController::calculateForecastAccuracy();
     }
 
     // Helper methods for enhanced SARIMA implementation
@@ -774,6 +812,9 @@ class SalesController extends Controller
 
     private function calculateVolatility($data)
     {
+        if (empty($data) || count($data) == 0) {
+            return 0;
+        }
         $mean = array_sum($data) / count($data);
         $variance = 0;
 
