@@ -49,20 +49,24 @@ class SalesController extends Controller
         // Step 9: Get sales trend data for charts
         $salesTrend = \App\Http\Controllers\ProductController::getSalesTrendData();
 
-        return view('pages.forecasting', compact(
-            'reorderCount',
-            'reorderNotifications',
-            'monthlySales',
-            'topProducts',
-            'salesStats',
-            'forecast',
-            'demandForecast',
-            'seasonalityAnalysis',
-            'restockingRecommendations',
-            'forecastAccuracy',
-            'preprocessedData',
-            'salesTrend'
-        ));
+            $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
+            $notificationCount = $pendingApprovalCount + $reorderCount;
+            return view('pages.forecasting', compact(
+                'reorderCount',
+                'reorderNotifications',
+                'monthlySales',
+                'topProducts',
+                'salesStats',
+                'forecast',
+                'demandForecast',
+                'seasonalityAnalysis',
+                'restockingRecommendations',
+                'forecastAccuracy',
+                'preprocessedData',
+                'salesTrend',
+                'pendingApprovalCount',
+                'notificationCount'
+            ));
     }
 
     /**

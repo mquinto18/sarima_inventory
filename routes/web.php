@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\EditRequestController;
 
 // Authentication routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -31,6 +32,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('products/search', [ProductController::class, 'search']);
     Route::post('products/{id}/approve-reorder', [ProductController::class, 'approveReorder']);
+    Route::post('/edit-requests', [EditRequestController::class, 'store'])->name('edit-requests.store');
 });
 
 // Account Management - Admin Only
@@ -40,9 +42,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/account-management/users/{id}/edit', [UserController::class, 'edit']);
     Route::put('/account-management/users/{id}', [UserController::class, 'update']);
     Route::delete('/account-management/users/{id}', [UserController::class, 'destroy']);
+    Route::get('/new-approval-requests', [EditRequestController::class, 'index'])->name('edit-requests.index');
+    Route::post('/approval-requests/{id}/approve', [EditRequestController::class, 'approve'])->name('edit-requests.approve');
+    Route::post('/approval-requests/{id}/reject', [EditRequestController::class, 'reject'])->name('edit-requests.reject');
 });
-
-// ...existing code...
 
 // Test SARIMA functionality
 Route::get('test/sarima', function () {

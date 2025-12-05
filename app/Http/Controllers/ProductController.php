@@ -336,6 +336,8 @@ class ProductController extends Controller
             })->count()
         ];
 
+        $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
+        $notificationCount = $pendingApprovalCount + $reorderCount;
         return view('dashboard', compact(
             'totalProducts', 
             'lowStockCount', 
@@ -347,7 +349,9 @@ class ProductController extends Controller
             'sarimaInsights',
             'forecastAccuracy',
             'monthlyRevenue',
-            'salesTrend'
+            'salesTrend',
+            'pendingApprovalCount',
+            'notificationCount'
         ));
     }
 
@@ -416,7 +420,9 @@ class ProductController extends Controller
         $reorderCount = $reorderRecommendations->count();
         $reorderNotifications = self::getReorderNotifications();
         
-        return view('pages.inventory', compact('products', 'totalProducts', 'lowStockCount', 'criticalStockCount', 'totalValue', 'reorderRecommendations', 'reorderCount', 'reorderNotifications'));
+        $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
+        $notificationCount = $pendingApprovalCount + $reorderCount;
+        return view('pages.inventory', compact('products', 'totalProducts', 'lowStockCount', 'criticalStockCount', 'totalValue', 'reorderRecommendations', 'reorderCount', 'reorderNotifications', 'pendingApprovalCount', 'notificationCount'));
     }
 
     /**
@@ -492,7 +498,21 @@ class ProductController extends Controller
         }
 
 
+
         $product->update($validated);
+
+        // If staff edits a product, mark their latest approved edit request as completed
+        if (Auth::user()->role === 'staff') {
+            $latestEditRequest = \App\Models\EditRequest::where('user_id', Auth::id())
+                ->where('status', 'approved')
+                ->where('completed', false)
+                ->latest()
+                ->first();
+            if ($latestEditRequest) {
+                $latestEditRequest->completed = true;
+                $latestEditRequest->save();
+            }
+        }
 
         // For AJAX: return JSON
         if ($request->wantsJson() || $request->ajax()) {

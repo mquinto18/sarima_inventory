@@ -19,4 +19,19 @@ class Product extends Model
         'price',
         'reorder_level',
     ];
+
+    public function approvedEditRequest()
+    {
+        return $this->hasOne(\App\Models\EditRequest::class)
+            ->where('status', 'approved');
+    }
+
+    // Returns the edit request for this product and user
+    public function editRequestForUser($userId)
+    {
+        return \App\Models\EditRequest::where('product_id', $this->id)
+            ->where('user_id', $userId)
+            ->latest()
+            ->first();
+    }
 }

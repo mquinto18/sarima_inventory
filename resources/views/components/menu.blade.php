@@ -68,6 +68,19 @@
             Account Management
         </a>
     </li>
+    <li>
+        <a href="/new-approval-requests" class="{{ request()->is('new-approval-requests') ? 'active' : '' }}">
+            <span style="vertical-align: middle; margin-right: 10px; color: #111;">
+                <!-- Approval Requests Icon: Clipboard with Check -->
+                <svg width="20" height="20" fill="none" stroke="#111" stroke-width="1.7" viewBox="0 0 24 24">
+                    <rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="#111" stroke-width="1.7" />
+                    <path d="M9 9h6" stroke="#111" stroke-width="1.7" stroke-linecap="round" />
+                    <path d="M9 13h2l1 2l3-4" stroke="#22c55e" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </span>
+            Approval Requests
+        </a>
+    </li>
     @endif
     <!-- Edit Requests link removed -->
 </ul>

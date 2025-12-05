@@ -13,8 +13,10 @@ class UserController extends Controller
         $users = User::orderBy('created_at', 'desc')->get();
         $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
         $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
+        $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
+        $notificationCount = $pendingApprovalCount + $reorderCount;
 
-        return view('pages.account-management', compact('users', 'reorderCount', 'reorderNotifications'));
+        return view('pages.account-management', compact('users', 'reorderCount', 'reorderNotifications', 'pendingApprovalCount', 'notificationCount'));
     }
 
     public function store(Request $request)

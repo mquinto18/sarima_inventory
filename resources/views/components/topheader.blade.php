@@ -164,8 +164,8 @@
                     <svg width="26" height="26" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11c0-3.07-1.64-5.64-5-5.958V4a1 1 0 1 0-2 0v1.042C6.64 5.36 5 7.929 5 11v3.159c0 .538-.214 1.055-.595 1.436L3 17h5m7 0v1a3 3 0 1 1-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    @if(isset($reorderCount) && $reorderCount > 0)
-                    <span>{{ $reorderCount > 9 ? '9+' : $reorderCount }}</span>
+                    @if(isset($notificationCount) && $notificationCount > 0)
+                        <span>{{ $notificationCount > 9 ? '9+' : $notificationCount }}</span>
                     @endif
                 </div>
                 <!-- Notification Dropdown -->
@@ -200,11 +200,26 @@
                             </div>
                         </div>
                         @endforeach
-                        @else
+                        @endif
+                        @if(isset($pendingApprovalCount) && $pendingApprovalCount > 0)
+                        <div style="padding: 12px 16px; border-bottom: 1px solid #f5f5f5; background: #f8fafc;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 8px; height: 8px; border-radius: 50%; background: #6366f1;"></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: #23272f; font-size: 14px;">Pending Approval Requests</div>
+                                    <div style="color: #666; font-size: 12px;">{{ $pendingApprovalCount }} request(s) need admin review</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <a href="/new-approval-requests" style="font-size: 12px; color: #6366f1; font-weight: 600; text-decoration: underline;">View</a>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
+                        @if((!isset($reorderNotifications) || count($reorderNotifications) === 0) && (!isset($pendingApprovalCount) || $pendingApprovalCount === 0))
                         <div style="padding: 20px 16px; text-align: center; color: #666;">
                             <div style="font-size: 24px; margin-bottom: 8px;">✅</div>
                             <div style="font-weight: 500;">All products are well-stocked!</div>
-                            <div style="font-size: 12px; margin-top: 4px; color: #999;">No reorder notifications at this time</div>
+                            <div style="font-size: 12px; margin-top: 4px; color: #999;">No notifications at this time</div>
                         </div>
                         @endif
                     </div>
@@ -221,12 +236,7 @@
                         <div style="font-weight: 600; color: #23272f; font-size: 14px;">{{ Auth::user()->name }}</div>
                         <div style="color: #666; font-size: 12px; margin-top: 2px;">{{ Auth::user()->email }}</div>
                     </div>
-                    <form method="POST" action="{{ route('logout') }}" style="margin: 0;">
-                        @csrf
-                        <button type="submit" class="dropdown-item" style="width: 100%; text-align: left; background: none; border: none; display: block; padding: 10px 16px; color: #ef4444; text-decoration: none; cursor: pointer; font-size: 14px;" onmouseover="this.style.backgroundColor='#f9f9f9'" onmouseout="this.style.backgroundColor='transparent'">
-                            Logout
-                        </button>
-                    </form>
+
                 </div>
             </div>
         </div>

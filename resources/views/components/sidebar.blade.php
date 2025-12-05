@@ -1,5 +1,22 @@
 <nav class="sidebar">
     @include('components.menu')
+    <ul>
+        <li>
+            <form method="POST" action="{{ route('logout') }}" style="margin: 0; ;">
+                @csrf
+                <button type="submit" style="width: 100%; text-align: left; background: none; border: none; display: flex; align-items: center; gap: 10px; padding: 13px 26px; color: #ef4444; font-size: 1.13rem; font-weight: 600; border-radius: 10px; cursor: pointer;">
+                    <span>
+                        <!-- Logout Icon -->
+                        <svg width="20" height="20" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M16 17l5-5m0 0l-5-5m5 5H9" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    Logout
+                </button>
+            </form>
+        </li>
+    </ul>
 </nav>
 
 <style>
@@ -10,7 +27,23 @@
     color: #374151;
     position: fixed;
     top: 70px;
+                            <div class="sidebar-logout">
+                                <form method="POST" action="{{ route('logout') }}" style="margin: 0;">
+                                    @csrf
+                                    <button type="submit" style="width: 100%; text-align: left; background: none; border: none; display: flex; align-items: center; gap: 10px; padding: 13px 26px; color: #ef4444; font-size: 1.13rem; font-weight: 600; border-radius: 10px; cursor: pointer;">
+                                        <span>
+                                            <!-- Logout Icon -->
+                                            <svg width="20" height="20" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24">
+                                                <path d="M16 17l5-5m0 0l-5-5m5 5H9" stroke-linecap="round" stroke-linejoin="round"/>
+                                                <path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        </span>
+                                        Logout
+                                    </button>
+                                </form>
+                            </div>
     left: 0;
+
     padding-top: 40px;
     padding-left: 10px;
     padding-right: 10px;
@@ -42,7 +75,7 @@
     box-shadow: 0 1px 4px 0 rgba(99,102,241,0.03);
 }
 .sidebar ul li a span svg {
-    stroke: #2563eb !important;
+    stroke: #2563eb !important; 
     fill: none !important;
     transition: stroke 0.2s, fill 0.2s;
     opacity: 0.85;

@@ -334,6 +334,31 @@
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 	<script>
 		$(function() {
+			// Edit Request button AJAX (single request per user)
+			$('#editRequestBtn').on('click', function() {
+				$.ajax({
+					url: '/edit-requests',
+					method: 'POST',
+					data: {
+						request_details: '',
+						_token: '{{ csrf_token() }}'
+					},
+					success: function(response) {
+						$('#toastTitle').text('Success');
+						$('#toastMessage').text('Edit request has been submitted');
+						$('#productToast').css('opacity', 1).show();
+						setTimeout(function() {
+							$('#productToast').hide();
+						}, 3000);
+						setTimeout(function() {
+							location.reload();
+						}, 1200);
+					},
+					error: function(xhr) {
+						alert('Error: Could not submit edit request.');
+					}
+				});
+			});
 			// Setup CSRF token for all AJAX requests
 			$.ajaxSetup({
 				headers: {
@@ -578,8 +603,62 @@
 
 	<!-- Current Inventory Table -->
 	<div class="inventory-table-container">
-    <div style="font-weight: 700; font-size: 1.15rem; margin-bottom: 16px; color: #23272f; padding-left: 24px; padding-top: 18px;">Current Inventory</div>
-    <div style="overflow-x: auto;">
+	<div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.15rem; margin-bottom: 16px; color: #23272f; padding-left: 24px; padding-top: 18px;">
+		<span>Current Inventory</span>
+		@if(Auth::user()->role === 'staff')
+		<button id="editRequestBtn" style="font-weight: 600; padding: 10px 22px; border-radius: 10px; font-size: 1rem; background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); border: none; color: #fff; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10); margin-right: 24px; cursor: pointer;">Edit Request</button>
+		@endif
+	</div>
+	@if(Auth::user()->role === 'staff')
+	<!-- Edit Request History for Staff -->
+	<div style="background: #fff; border-radius: 16px; margin-top: 32px; box-shadow: 0 1px 4px rgba(99,102,241,0.06); padding: 24px;">
+		<div style="font-weight: 700; font-size: 1.15rem; color: #23272f; margin-bottom: 16px;">Your Edit Request History</div>
+		@php
+			$editRequests = \App\Models\EditRequest::where('user_id', Auth::id())
+				->orderBy('created_at', 'desc')
+				->get();
+		@endphp
+		<table style="width:100%; border-collapse: collapse;">
+			<thead>
+				<tr style="background: #f3f4f6; color: #6366f1; font-weight: 700;">
+					<th style="padding: 10px 14px;">Date</th>
+					<th style="padding: 10px 14px;">Status</th>
+					<th style="padding: 10px 14px;">Completed</th>
+				</tr>
+			</thead>
+			<tbody>
+				@forelse($editRequests as $req)
+				<tr style="border-bottom: 1px solid #f3f4f6;">
+					<td style="padding: 10px 14px; color: #23272f;">{{ $req->created_at->format('Y-m-d H:i') }}</td>
+					<td style="padding: 10px 14px;">
+						@if($req->status === 'approved')
+							<span style="color: #22c55e; font-weight: 600;">Approved</span>
+						@elseif($req->status === 'pending')
+							<span style="color: #6366f1; font-weight: 600;">Pending</span>
+						@elseif($req->status === 'rejected')
+							<span style="color: #ef4444; font-weight: 600;">Rejected</span>
+						@else
+							<span>{{ $req->status }}</span>
+						@endif
+					</td>
+					<td style="padding: 10px 14px;">
+						@if($req->completed)
+							<span style="color: #22c55e; font-weight: 600;">Yes</span>
+						@else
+							<span style="color: #888;">No</span>
+						@endif
+					</td>
+				</tr>
+				@empty
+				<tr>
+					<td colspan="3" style="text-align: center; color: #aaa; padding: 14px;">No edit requests found.</td>
+				</tr>
+				@endforelse
+			</tbody>
+		</table>
+	</div>
+	@endif
+	<div style="overflow-x: auto;">
         <table class="inventory-table">
             <thead>
                 <tr>
@@ -603,18 +682,32 @@
                     <td>{{ $product->stock }}</td>
                     <td>₱{{ number_format($product->price, 2) }}</td>
                     <td>
-                        @if($product->status === 'In Stock')
-                            <span class="status-badge in-stock">In Stock</span>
-                        @elseif($product->status === 'Low Stock')
-                            <span class="status-badge low">Low Stock</span>
-                        @elseif($product->status === 'Critical')
-                            <span class="status-badge critical">Critical</span>
-                        @else
-                            <span class="status-badge">{{ $product->status }}</span>
-                        @endif
+						@if($product->status === 'In Stock')
+							<span class="status-badge in-stock">In Stock</span>
+						@elseif($product->status === 'Low Stock')
+							<span class="status-badge low">Low Stock</span>
+						@elseif($product->status === 'Critical')
+							<span class="status-badge critical">Critical</span>
+						@else
+							<span class="status-badge">{{ $product->status }}</span>
+						@endif
                     </td>
                     <td style="text-align: center; white-space: nowrap;">
-						<button class="inventory-action-btn edit edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}">Edit</button>
+						@if(Auth::user()->role !== 'admin')
+	@php
+		// Get the latest edit request for this user (not per product)
+		$latestEditRequest = \App\Models\EditRequest::where('user_id', Auth::id())
+			->latest()
+			->first();
+	@endphp
+	@if($latestEditRequest && $latestEditRequest->status === 'approved' && !$latestEditRequest->completed)
+		<button class="inventory-action-btn edit edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}">Edit</button>
+	@else
+		<button class="inventory-action-btn edit edit-btn" disabled style="background: #bdbdbd; color: #fff; cursor: not-allowed; opacity: 0.7;" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}">Edit</button>
+	@endif
+@else
+	<button class="inventory-action-btn edit edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}">Edit</button>
+@endif
 						@if(Auth::user()->role !== 'staff')
 						<button class="inventory-action-btn delete delete-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}">Delete</button>
 						@endif
