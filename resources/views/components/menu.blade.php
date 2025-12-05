@@ -69,4 +69,5 @@
         </a>
     </li>
     @endif
+    <!-- Edit Requests link removed -->
 </ul>

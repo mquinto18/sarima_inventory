@@ -128,10 +128,16 @@
             <div class="main">{{ $totalProducts }}</div>
             <div class="sub">in inventory</div>
         </div>
-        <!-- Low Stock Alerts -->
+        <!-- Reorder Alerts -->
         <div class="dashboard-card" tabindex="0">
-            <div class="icon" style="background: #fee2e2; color: #ef4444;">&#9888;</div>
-            <div class="desc">Low Stock Alerts</div>
+            <div class="icon" style="background: #e0e7ff; color: #3b82f6;">
+                <!-- Box/package SVG icon -->
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="7" width="18" height="13" rx="2" fill="#e0e7ff" stroke="#3b82f6" stroke-width="2"/>
+                  <path d="M3 7l9 5 9-5" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="desc">Reorder Alerts</div>
             <div class="main">{{ $dynamicReorderCount }}</div>
             <div class="sub">products need reorder</div>
         </div>

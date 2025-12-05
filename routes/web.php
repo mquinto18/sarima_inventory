@@ -42,6 +42,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::delete('/account-management/users/{id}', [UserController::class, 'destroy']);
 });
 
+// ...existing code...
+
 // Test SARIMA functionality
 Route::get('test/sarima', function () {
     $salesController = new \App\Http\Controllers\SalesController();

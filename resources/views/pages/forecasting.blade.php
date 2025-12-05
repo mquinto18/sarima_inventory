@@ -611,9 +611,9 @@
 											
 											$growth = null;
 											$growthPercentage = 0;
-											
+											$currentRevenue = ($month == \Carbon\Carbon::now()->format('Y-m')) ? $salesStats['current_month_revenue'] : $revenue;
 											if ($previousRevenue !== null && $previousRevenue > 0) {
-												$growth = $revenue - $previousRevenue;
+												$growth = $currentRevenue - $previousRevenue;
 												$growthPercentage = ($growth / $previousRevenue) * 100;
 											}
 											

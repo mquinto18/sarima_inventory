@@ -20,6 +20,19 @@
     margin-bottom: 2.5rem;
     font-weight: 500;
 }
+.modern-table-container {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 2px 12px 0 rgba(99,102,241,0.08);
+    padding: 24px 0 0 0;
+    margin-bottom: 32px;
+    overflow: hidden;
+}
+.modern-table-container .modern-table-header {
+    padding-left: 32px;
+    padding-top: 8px;
+    margin-bottom: 16px;
+}
 .modern-table {
     width: 100%;
     border-collapse: separate;
@@ -35,29 +48,47 @@
     text-align: left;
     border-bottom: 1.5px solid #f3f4f6;
 }
-.modern-table th {
+.modern-table thead th {
     background: #f3f4f6;
     color: #6366f1;
     font-weight: 700;
     border-top: none;
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 .modern-table tr:last-child td {
     border-bottom: none;
 }
+.modern-table tbody tr {
+    transition: box-shadow 0.18s, background 0.18s;
+}
 .modern-table tbody tr:hover {
-    background: #f1f5f9;
-    transition: background 0.18s;
+    background: #eef2ff;
+    box-shadow: 0 4px 18px 0 rgba(99,102,241,0.10);
 }
 .role-admin { background: #fee2e2; color: #991b1b; }
 .role-manager { background: #fef3c7; color: #92400e; }
 .role-staff { background: #dbeafe; color: #1e40af; }
-
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e0e7ff 60%, #6366f1 100%);
+    color: #4338ca;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.25rem;
+    box-shadow: 0 2px 8px 0 rgba(99,102,241,0.08);
+}
 .action-btn {
     font-weight: 600;
     border-radius: 12px;
     padding: 8px 20px;
     font-size: 1rem;
-    margin-right: 8px;
+    margin: 0 4px;
     border: none;
     box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10);
     transition: background 0.2s, box-shadow 0.2s;
@@ -79,14 +110,15 @@
     box-shadow: 0 4px 12px 0 rgba(239,68,68,0.18);
 }
 </style>
+
 <div class="dashboard-gradient" style="margin-left: 220px; padding: 40px; padding-top: 90px;">
     <div class="dashboard-title">Account Management</div>
     <div class="dashboard-subtitle">Manage user accounts and access permissions</div>
     <div style="margin-bottom: 28px;">
         <button onclick="showAddUserModal()" style="font-weight: 700; padding: 13px 28px; border-radius: 10px; font-size: 1.13rem; background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); border: none; color: #fff; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10); transition: background 0.2s;">+ Add New User</button>
     </div>
-    <div style="background: none; border-radius: 18px; box-shadow: none; padding: 0;">
-        <div style="font-weight: 700; font-size: 1.15rem; margin-bottom: 16px; color: #23272f;">User Accounts</div>
+    <div class="modern-table-container">
+        <div class="modern-table-header" style="font-weight: 700; font-size: 1.15rem; color: #23272f;">User Accounts</div>
         <table class="modern-table">
             <thead>
                 <tr>
@@ -101,10 +133,8 @@
                 @foreach($users as $user)
                 <tr>
                     <td>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="width: 40px; height: 40px; border-radius: 50%; background: #e0e7ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-weight: 600;">
-                                {{ strtoupper(substr($user->name, 0, 1)) }}
-                            </span>
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            <span class="user-avatar">{{ strtoupper(substr($user->name, 0, 1)) }}</span>
                             <span style="font-weight: 500; color: #23272f;">{{ $user->name }}</span>
                         </div>
                     </td>
@@ -115,11 +145,11 @@
                         </span>
                     </td>
                     <td style="color: #6b7280;">{{ $user->created_at->format('M d, Y') }}</td>
-                    <td style="text-align: center;">
-                            <button onclick="editUser('{{ $user->id }}')" class="action-btn edit">Edit</button>
-                            @if($user->id !== Auth::id())
-                            <button onclick="deleteUser('{{ $user->id }}')" class="action-btn delete">Delete</button>
-                            @endif
+                    <td style="text-align: center; white-space: nowrap;">
+                        <button onclick="editUser('{{ $user->id }}')" class="action-btn edit">Edit</button>
+                        @if($user->id !== Auth::id())
+                        <button onclick="deleteUser('{{ $user->id }}')" class="action-btn delete">Delete</button>
+                        @endif
                     </td>
                 </tr>
                 @endforeach

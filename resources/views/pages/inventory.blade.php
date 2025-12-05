@@ -72,6 +72,92 @@
 	color: #888;
 	font-weight: 400;
 }
+.inventory-table-container {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 2px 12px 0 rgba(99,102,241,0.08);
+    padding: 0;
+    margin-bottom: 32px;
+    overflow: hidden;
+}
+.inventory-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 2px 12px 0 rgba(99,102,241,0.06);
+    overflow: hidden;
+}
+.inventory-table th, .inventory-table td {
+    padding: 16px 18px;
+    font-size: 1.08rem;
+    text-align: left;
+    border-bottom: 1.5px solid #f3f4f6;
+}
+.inventory-table thead th {
+    background: #f3f4f6;
+    color: #6366f1;
+    font-weight: 700;
+    border-top: none;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+.inventory-table tr:last-child td {
+    border-bottom: none;
+}
+.inventory-table tbody tr {
+    transition: box-shadow 0.18s, background 0.18s;
+}
+.inventory-table tbody tr:hover {
+    background: #eef2ff;
+    box-shadow: 0 4px 18px 0 rgba(99,102,241,0.10);
+}
+.status-badge {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    background: #e0fce6;
+    color: #22c55e;
+    display: inline-block;
+}
+.status-badge.in-stock { background: #e0fce6; color: #22c55e; }
+.status-badge.low { background: #fef9c3; color: #f59e0b; }
+.status-badge.critical { background: #fee2e2; color: #ef4444; }
+.inventory-action-btn {
+    font-weight: 600;
+    border-radius: 12px;
+    padding: 8px 20px;
+    font-size: 1rem;
+    margin: 0 4px;
+    border: none;
+    box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.inventory-action-btn.edit {
+    background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+    color: #fff;
+}
+.inventory-action-btn.edit:hover {
+    background: linear-gradient(90deg, #4338ca 0%, #6366f1 100%);
+    box-shadow: 0 4px 12px 0 rgba(99,102,241,0.18);
+}
+.inventory-action-btn.delete {
+    background: linear-gradient(90deg, #ef4444 0%, #dc3545 100%);
+    color: #fff;
+}
+.inventory-action-btn.delete:hover {
+    background: linear-gradient(90deg, #b91c1c 0%, #ef4444 100%);
+    box-shadow: 0 4px 12px 0 rgba(239,68,68,0.18);
+}
+@media (max-width: 900px) {
+    .inventory-table th, .inventory-table td {
+        padding: 10px 6px;
+        font-size: 0.98rem;
+    }
+}
 </style>
 <div class="dashboard-gradient" style="margin-left: 220px; padding: 40px; padding-top: 90px;">
 	<div class="dashboard-title">Inventory Management</div>
@@ -98,11 +184,32 @@
 			<div class="main">₱{{ number_format($totalValue, 2) }}</div>
 		</div>
 	</div>
+		<!-- Debug: Low Stock Products List -->
+		@if(isset($products) && $products->where('stock', '<=', 10)->where('stock', '>', 5)->count() > 0)
+		<div style="background: #fffbe6; border: 1.5px solid #fde68a; border-radius: 12px; padding: 18px 24px; margin-bottom: 18px;">
+		    <strong>Debug: Products with Low Stock (6-10 units)</strong>
+		    <ul style="margin-top: 10px;">
+		        @foreach($products->where('stock', '<=', 10)->where('stock', '>', 5) as $product)
+		            <li>{{ $product->name }} (Stock: {{ $product->stock }})</li>
+		        @endforeach
+		    </ul>
+		</div>
+		@endif
 
 	<!-- Modern Search and Add Product Bar -->
 	<div style="display: flex; align-items: center; gap: 18px; margin-bottom: 22px;">
-		<input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="Search products..." style="flex: 1; padding: 14px 18px; border-radius: 10px; border: 1.5px solid #c7d2fe; font-size: 1.13rem; background: #f8fafc; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.04); transition: border 0.2s;">
-		<button id="addProductBtn" style="font-weight: 700; padding: 13px 28px; border-radius: 10px; font-size: 1.13rem; background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); border: none; color: #fff; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10); transition: background 0.2s;">+ Add Product</button>
+		<div style="position: relative; flex: 1;">
+			<input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="Search products..." style="width: 100%; padding: 14px 18px 14px 44px; border-radius: 12px; border: 2px solid #6366f1; font-size: 1.15rem; background: #f8fafc; box-shadow: 0 2px 12px 0 rgba(99,102,241,0.08); transition: border 0.2s; outline: none;">
+			<span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #6366f1; pointer-events: none;">
+				<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+					<circle cx="11" cy="11" r="8" />
+					<line x1="21" y1="21" x2="16.65" y2="16.65" />
+				</svg>
+			</span>
+		</div>
+		@if(Auth::user()->role !== 'staff')
+		<button id="addProductBtn" style="font-weight: 700; padding: 13px 28px; border-radius: 12px; font-size: 1.15rem; background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); border: none; color: #fff; box-shadow: 0 2px 12px 0 rgba(99,102,241,0.10); transition: background 0.2s;">+ Add Product</button>
+		@endif
 	</div>
 
 	<!-- Modern Add Product Modal -->
@@ -136,7 +243,7 @@
 						<label for="productStock" style="display: block; margin-bottom: 6px; font-weight: 600; color: #23272f;">Stock</label>
 						<select id="productStock" name="stock" required style="width: 100%; padding: 12px; border: 1.5px solid #c7d2fe; border-radius: 10px; box-sizing: border-box; font-size: 1.08rem;">
 							<option value="">Select Stock</option>
-							@for($i = 50; $i <= 500; $i += 50)
+							@for($i = 1; $i <= 500; $i++)
 								<option value="{{ $i }}">{{ $i }}</option>
 							@endfor
 						</select>
@@ -457,62 +564,73 @@
 				}
 			});
 		});
+
+		function filterProducts() {
+    const input = document.getElementById('searchInput');
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.inventory-table tbody tr');
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+    });
+}
 	</script>
 
 	<!-- Current Inventory Table -->
-	<div style="background: #fff; border-radius: 16px; padding: 24px 24px 32px 24px; margin-bottom: 32px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
-		<div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #23272f;">Current Inventory</div>
-		<div style="overflow-x: auto;">
-			<table style="width: 100%; border-collapse: collapse;">
-				<thead>
-					<tr style="background: #fafbfc;">
-						<th style="padding: 12px 8px; text-align: center; font-weight: 600; color: #23272f; width: 60px;">#</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Product ID</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Name</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Category</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Stock</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Price</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Status</th>
-						<th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					   @forelse($products as $product)
-					   <tr class="product-row">
-						</div>
-						<script>
-						function filterProducts() {
-							const input = document.getElementById('searchInput');
-							const filter = input.value.toLowerCase();
-							const rows = document.querySelectorAll('.product-row');
-							rows.forEach(row => {
-								const text = row.textContent.toLowerCase();
-								row.style.display = text.includes(filter) ? '' : 'none';
-							});
-						}
-						</script>
-						<td style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666;">{{ $loop->iteration }}</td>
-						<td style="padding: 10px 8px;">{{ $product->id }}</td>
-						<td style="padding: 10px 8px;">{{ $product->name }}</td>
-						<td style="padding: 10px 8px;">{{ $product->category }}</td>
-						<td style="padding: 10px 8px;">{{ $product->stock }}</td>
-						<td style="padding: 10px 8px;">₱{{ number_format($product->price, 2) }}</td>
-						<td style="padding: 10px 8px;">{{ $product->status }}</td>
-						<td style="padding: 10px 8px;">
-							<button class="edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}" style="background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%); color: #fff; border: none; border-radius: 12px; padding: 8px 20px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-right: 8px; box-shadow: 0 2px 8px 0 rgba(99,102,241,0.10); transition: background 0.2s, box-shadow 0.2s;">Edit</button>
-							<button class="delete-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" style="background: linear-gradient(90deg, #ef4444 0%, #dc3545 100%); color: #fff; border: none; border-radius: 12px; padding: 8px 20px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px 0 rgba(239,68,68,0.10); transition: background 0.2s, box-shadow 0.2s;">Delete</button>
-						</td>
-					</tr>
-					@empty
-					<tr>
-						<td colspan="8" style="padding: 10px 8px; text-align: center; color: #aaa;">No products found.</td>
-					</tr>
-					@endforelse
-				</tbody>
-			</table>
-		</div>
-	</div>
+	<div class="inventory-table-container">
+    <div style="font-weight: 700; font-size: 1.15rem; margin-bottom: 16px; color: #23272f; padding-left: 24px; padding-top: 18px;">Current Inventory</div>
+    <div style="overflow-x: auto;">
+        <table class="inventory-table">
+            <thead>
+                <tr>
+                    <th style="text-align: center; width: 60px;">#</th>
+                    <th>Product ID</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Stock</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th style="text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($products as $product)
+                <tr>
+                    <td style="text-align: center; color: #666; font-weight: 500;">{{ $loop->iteration }}</td>
+                    <td>{{ $product->id }}</td>
+                    <td style="font-weight: 600; color: #23272f;">{{ $product->name }}</td>
+                    <td>{{ $product->category }}</td>
+                    <td>{{ $product->stock }}</td>
+                    <td>₱{{ number_format($product->price, 2) }}</td>
+                    <td>
+                        @if($product->status === 'In Stock')
+                            <span class="status-badge in-stock">In Stock</span>
+                        @elseif($product->status === 'Low Stock')
+                            <span class="status-badge low">Low Stock</span>
+                        @elseif($product->status === 'Critical')
+                            <span class="status-badge critical">Critical</span>
+                        @else
+                            <span class="status-badge">{{ $product->status }}</span>
+                        @endif
+                    </td>
+                    <td style="text-align: center; white-space: nowrap;">
+						<button class="inventory-action-btn edit edit-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}" data-category="{{ $product->category }}" data-stock="{{ $product->stock }}" data-status="{{ $product->status }}" data-price="{{ $product->price }}" data-reorder="{{ $product->reorder_level }}">Edit</button>
+						@if(Auth::user()->role !== 'staff')
+						<button class="inventory-action-btn delete delete-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}">Delete</button>
+						@endif
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="8" style="text-align: center; color: #aaa;">No products found.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
 
+	@if(Auth::user()->role !== 'staff')
 	<!-- Reorder Recommendations -->
 	<div id="reorder-recommendations" style="background: #fff; border-radius: 16px; padding: 24px 24px 32px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
 		<div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #23272f;">
@@ -573,4 +691,5 @@
 			@endforelse
 		</div>
 	</div>
+	@endif
 </div>

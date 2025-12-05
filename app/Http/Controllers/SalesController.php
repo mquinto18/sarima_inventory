@@ -191,7 +191,7 @@ class SalesController extends Controller
 
         $totalSalesCount = Sale::whereYear('sale_date', $thisMonth->year)
             ->whereMonth('sale_date', $thisMonth->month)
-            ->count();
+            ->sum('quantity_sold');
         $averageOrderValue = Sale::whereYear('sale_date', $thisMonth->year)
             ->whereMonth('sale_date', $thisMonth->month)
             ->avg('total_amount') ?? 0;
