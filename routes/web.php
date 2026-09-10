@@ -15,24 +15,50 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [ProductController::class, 'dashboard']);
     Route::get('/forecasting', [\App\Http\Controllers\SalesController::class, 'index'])->name('forecasting');
-    Route::post('/sales', [\App\Http\Controllers\SalesController::class, 'store']);
+    // Manual sale recording removed: sales are captured through Point of Sale,
+    // which is the single path that deducts stock and issues a receipt.
     Route::get('/inventory', [ProductController::class, 'index']);
 
-    Route::get('/analytics', function () {
-        $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
-        $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
-        return view('pages.analytics', compact('reorderCount', 'reorderNotifications'));
-    });
+    Route::get('/analytics', [\App\Http\Controllers\AnalyticsController::class, 'index'])->name('analytics');
 
-    Route::get('/settings', function () {
-        $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
-        $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
-        return view('pages.settings', compact('reorderCount', 'reorderNotifications'));
-    });
+    Route::get('/settings', [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings');
+    Route::post('/settings', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
 
     Route::get('products/search', [ProductController::class, 'search']);
-    Route::post('products/{id}/approve-reorder', [ProductController::class, 'approveReorder']);
+    // Reorder approval removed: stock must arrive through a supplier purchase
+    // order (Suppliers -> Purchase Orders -> Receive Delivery), not by adding
+    // stock directly from a recommendation.
     Route::post('/edit-requests', [EditRequestController::class, 'store'])->name('edit-requests.store');
+
+    // Combined Forecasting + Analytics PDF, previewed in an in-page drawer.
+    // The drawer fetches both pages' chart datasets, rasterises them, and posts
+    // them back to be embedded in the PDF it then previews.
+    Route::get('/reports/datasets', [\App\Http\Controllers\ReportController::class, 'datasets'])->name('reports.datasets');
+    Route::post('/reports/full', [\App\Http\Controllers\ReportController::class, 'generate'])->name('reports.generate');
+
+    // Point of Sale
+    Route::get('/pos', [\App\Http\Controllers\PosController::class, 'index'])->name('pos.index');
+    Route::get('/pos/lookup', [\App\Http\Controllers\PosController::class, 'lookup'])->name('pos.lookup');
+    Route::post('/pos/checkout', [\App\Http\Controllers\PosController::class, 'checkout'])->name('pos.checkout');
+    Route::get('/pos/receipt/{transactionId}', [\App\Http\Controllers\PosController::class, 'receipt'])->name('pos.receipt');
+
+    // Suppliers
+    Route::get('/suppliers', [\App\Http\Controllers\SupplierController::class, 'index'])->name('suppliers.index');
+    Route::post('/suppliers', [\App\Http\Controllers\SupplierController::class, 'store'])->name('suppliers.store');
+    Route::put('/suppliers/{supplier}', [\App\Http\Controllers\SupplierController::class, 'update'])->name('suppliers.update');
+    Route::delete('/suppliers/{supplier}', [\App\Http\Controllers\SupplierController::class, 'destroy'])->name('suppliers.destroy');
+    Route::post('/suppliers/link-product', [\App\Http\Controllers\SupplierController::class, 'linkProduct'])->name('suppliers.link-product');
+    Route::delete('/suppliers/product-links/{productSupplier}', [\App\Http\Controllers\SupplierController::class, 'unlinkProduct'])->name('suppliers.unlink-product');
+
+    // Purchase Orders
+    Route::get('/purchase-orders', [\App\Http\Controllers\PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+    Route::get('/purchase-orders/{purchaseOrder}', [\App\Http\Controllers\PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+    Route::post('/purchase-orders/{purchaseOrder}/receive', [\App\Http\Controllers\PurchaseOrderController::class, 'receiveDelivery'])->name('purchase-orders.receive');
+
+    // Transaction logs (read-only). Role enforced in the controller via
+    // denyStaff(), matching Suppliers / Purchase Orders / Settings.
+    Route::get('/logs/pos', [\App\Http\Controllers\TransactionLogController::class, 'pos'])->name('logs.pos');
+    Route::get('/logs/deliveries', [\App\Http\Controllers\TransactionLogController::class, 'deliveries'])->name('logs.deliveries');
 });
 
 // Account Management - Admin Only
@@ -41,7 +67,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/account-management/users', [UserController::class, 'store']);
     Route::get('/account-management/users/{id}/edit', [UserController::class, 'edit']);
     Route::put('/account-management/users/{id}', [UserController::class, 'update']);
+    // Archives the account rather than deleting it; restored from Settings.
     Route::delete('/account-management/users/{id}', [UserController::class, 'destroy']);
+    Route::post('/settings/archived-users/{id}/restore', [UserController::class, 'restore'])
+        ->name('users.restore');
     Route::get('/new-approval-requests', [EditRequestController::class, 'index'])->name('edit-requests.index');
     Route::post('/approval-requests/{id}/approve', [EditRequestController::class, 'approve'])->name('edit-requests.approve');
     Route::post('/approval-requests/{id}/reject', [EditRequestController::class, 'reject'])->name('edit-requests.reject');

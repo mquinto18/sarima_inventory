@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientStockException;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\Sale;
+use App\Models\Setting;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +46,7 @@ class ProductController extends Controller
             $dynamicReorderPoint = self::calculateDynamicReorderPoint($product->id);
             $forecastedDemand = self::getForecastedDemand($product->id);
             $recommendedQuantity = max($forecastedDemand, $dynamicReorderPoint);
-            $priority = $product->stock <= 5 ? 'High' : ($product->stock <= 10 ? 'Medium' : 'Low');
+            $priority = $product->stock <= Setting::get('critical_stock_level', 5) ? 'High' : ($product->stock <= Setting::get('low_stock_threshold', 10) ? 'Medium' : 'Low');
             
             return [
                 'id' => $product->id,
@@ -92,9 +96,13 @@ class ProductController extends Controller
         
         $safetyStock = $serviceLevel * $standardDeviation * sqrt($leadTime);
         $dynamicReorderPoint = ($averageMonthlyDemand * $leadTime) + $safetyStock;
-        
-        // Ensure minimum reorder point
-        return max($dynamicReorderPoint, $product->reorder_level ?? 5);
+
+        // Ensure minimum reorder point. Rounded up to a whole unit here at the
+        // source: stock is only ever counted in whole units, and every caller
+        // either displays this or compares it against an integer stock level.
+        // ceil() rather than round() so a fractional safety margin is never
+        // discarded — under-ordering is the costlier mistake.
+        return (int) ceil(max($dynamicReorderPoint, $product->reorder_level ?? 5));
     }
 
     /**
@@ -143,7 +151,9 @@ class ProductController extends Controller
         
         if (count($demandData) < 3) {
             // Not enough data, return average of existing data or default
-            return count($demandData) > 0 ? array_sum($demandData) / count($demandData) : 20;
+            return count($demandData) > 0
+                ? (int) ceil(array_sum($demandData) / count($demandData))
+                : 20;
         }
 
         // Simple trend calculation
@@ -157,8 +167,9 @@ class ProductController extends Controller
         $seasonalComponent = isset($seasonal[$seasonalIndex]) ? $seasonal[$seasonalIndex] : 0;
         
         $forecast = max(0, $lastValue + $trend + $seasonalComponent);
-        
-        return round($forecast);
+
+        // round() returns a float in PHP; cast so callers get a real integer.
+        return (int) round($forecast);
     }
 
     /**
@@ -209,23 +220,41 @@ class ProductController extends Controller
     }
 
     /**
-     * Calculate forecast accuracy based on SARIMA predictions vs actual sales
+     * Calculate forecast accuracy based on SARIMA predictions vs actual sales.
+     *
+     * Evaluated the same way for every metric: for each product, the last
+     * month of history is held out as "actual" and forecast from the
+     * preceding months (single-holdout, not a rolling backtest).
+     *  - MAE  = average |actual - forecast|, in units
+     *  - RMSE = sqrt(average (actual - forecast)^2), in units — penalizes
+     *           large misses harder than MAE
+     *  - MAPE = average |actual - forecast| / actual, as a % (existing metric,
+     *           unchanged; still what "Forecast Accuracy %" is derived from)
+     *  - MASE = MAE scaled against an in-sample naive (previous-period)
+     *           forecast's error; < 1 means the model beats a naive
+     *           forecast, > 1 means it's worse. Skipped per-product when the
+     *           naive baseline has zero error (flat training data), since
+     *           that ratio is undefined.
      */
     public static function calculateForecastAccuracy()
     {
         $products = Product::all();
         $totalMape = 0;
+        $totalAbsoluteError = 0;
+        $totalSquaredError = 0;
+        $totalMase = 0;
         $validProducts = 0;
-        
+        $validMaseProducts = 0;
+
         foreach ($products as $product) {
             // Get historical data (last 6 months)
             $historicalData = self::getProductDemandHistory($product->id, 6);
-            
+
             // Need at least 4 data points to compare (3 for training, 1 for testing)
             if (count($historicalData) >= 4) {
                 // Use last value as "actual" and previous values to forecast
                 $actualDemand = array_pop($historicalData); // Take last month as actual
-                
+
                 if ($actualDemand > 0) {
                     // Calculate forecast using remaining historical data
                     $trend = self::calculateSimpleTrend($historicalData);
@@ -234,17 +263,40 @@ class ProductController extends Controller
                     $seasonalIndex = count($historicalData) % 3;
                     $seasonalComponent = isset($seasonal[$seasonalIndex]) ? $seasonal[$seasonalIndex] : 0;
                     $forecastedDemand = max(0, $lastValue + $trend + $seasonalComponent);
-                    
-                    // Calculate MAPE for this product
-                    if ($forecastedDemand > 0) {
-                        $productMape = abs(($actualDemand - $forecastedDemand) / $actualDemand) * 100;
-                        $totalMape += min($productMape, 100); // Cap at 100% error
-                        $validProducts++;
+
+                    // Note: forecastedDemand can legitimately be 0 (a product
+                    // the model predicted no demand for) - that's still a
+                    // real, countable error against actualDemand > 0, so it
+                    // must not be excluded from the metrics below. Neither
+                    // MAPE (divides by actualDemand) nor MAE/RMSE has a
+                    // division-by-zero risk from forecastedDemand being 0.
+                    $absoluteError = abs($actualDemand - $forecastedDemand);
+
+                    // MAPE (existing)
+                    $productMape = ($absoluteError / $actualDemand) * 100;
+                    $totalMape += min($productMape, 100); // Cap at 100% error
+
+                    // MAE / RMSE accumulators
+                    $totalAbsoluteError += $absoluteError;
+                    $totalSquaredError += pow($actualDemand - $forecastedDemand, 2);
+                    $validProducts++;
+
+                    // MASE: scale this product's error against its own
+                    // in-sample naive (previous-month) forecast error.
+                    $naiveDiffs = [];
+                    for ($i = 1; $i < count($historicalData); $i++) {
+                        $naiveDiffs[] = abs($historicalData[$i] - $historicalData[$i - 1]);
+                    }
+                    $naiveMae = count($naiveDiffs) > 0 ? array_sum($naiveDiffs) / count($naiveDiffs) : 0;
+
+                    if ($naiveMae > 0) {
+                        $totalMase += $absoluteError / $naiveMae;
+                        $validMaseProducts++;
                     }
                 }
             }
         }
-        
+
         // Calculate average MAPE across all products
         // If no products with enough data, show a default good accuracy
         if ($validProducts > 0) {
@@ -253,14 +305,17 @@ class ProductController extends Controller
             // No data available yet - show pending status
             return [
                 'mape' => 0,
+                'mae' => 0,
+                'rmse' => 0,
+                'mase' => null,
                 'accuracy_percentage' => 0,
                 'status' => 'Pending Data',
                 'products_analyzed' => 0
             ];
         }
-        
+
         $accuracyPercentage = round(max(0, 100 - $avgMape), 1);
-        
+
         // Determine status based on accuracy
         $status = 'Excellent';
         if ($accuracyPercentage < 95) {
@@ -272,9 +327,12 @@ class ProductController extends Controller
         if ($accuracyPercentage < 75) {
             $status = 'Needs Improvement';
         }
-        
+
         return [
             'mape' => round($avgMape, 2),
+            'mae' => round($totalAbsoluteError / $validProducts, 2),
+            'rmse' => round(sqrt($totalSquaredError / $validProducts), 2),
+            'mase' => $validMaseProducts > 0 ? round($totalMase / $validMaseProducts, 2) : null,
             'accuracy_percentage' => $accuracyPercentage,
             'status' => $status,
             'products_analyzed' => $validProducts
@@ -297,9 +355,9 @@ class ProductController extends Controller
         foreach ($products as $product) {
             $dynamicReorderPoint = self::calculateDynamicReorderPoint($product->id);
             
-            if ($product->stock <= 5) {
+            if ($product->stock <= Setting::get('critical_stock_level', 5)) {
                 $criticalStockCount++;
-            } elseif ($product->stock <= 10) {
+            } elseif ($product->stock <= Setting::get('low_stock_threshold', 10)) {
                 $lowStockCount++;
             }
             
@@ -314,16 +372,16 @@ class ProductController extends Controller
         
         $reorderNotifications = self::getReorderNotifications();
         $reorderCount = self::getReorderCount();
-        
+
         // Get forecast accuracy
         $forecastAccuracy = self::calculateForecastAccuracy();
-        
+
         // Get monthly revenue
         $monthlyRevenue = self::calculateMonthlyRevenue();
-        
+
         // Get sales trend data for chart (last 6 months)
         $salesTrend = self::getSalesTrendData();
-        
+
         // Add SARIMA insights summary
         $sarimaInsights = [
             'dynamic_reorders' => $dynamicReorderCount,
@@ -336,23 +394,53 @@ class ProductController extends Controller
             })->count()
         ];
 
+        // Products expiring soon (or already expired)
+        $expiringProducts = self::getExpiringProducts();
+        $expiringCount = $expiringProducts->count();
+
+        // Fast/slow-moving teaser widgets (full lists live on the Analytics page)
+        $fastMovingProducts = AnalyticsController::getFastMovingProducts(3);
+        $slowMovingProducts = AnalyticsController::getSlowMovingProducts(3);
+
+        // Upcoming supplier deliveries
+        $upcomingDeliveries = PurchaseOrder::upcoming()->with('supplier')->get();
+
         $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
         $notificationCount = $pendingApprovalCount + $reorderCount;
         return view('dashboard', compact(
-            'totalProducts', 
-            'lowStockCount', 
+            'totalProducts',
+            'lowStockCount',
             'criticalStockCount',
             'dynamicReorderCount',
-            'totalValue', 
+            'totalValue',
             'reorderNotifications',
             'reorderCount',
             'sarimaInsights',
             'forecastAccuracy',
             'monthlyRevenue',
             'salesTrend',
+            'expiringProducts',
+            'expiringCount',
+            'fastMovingProducts',
+            'slowMovingProducts',
+            'upcomingDeliveries',
             'pendingApprovalCount',
             'notificationCount'
         ));
+    }
+
+    /**
+     * Products whose expiry_date is already past, or falls within the
+     * configured alert window (Settings -> expiry_alert_days).
+     */
+    public static function getExpiringProducts()
+    {
+        $days = (int) Setting::get('expiry_alert_days', 30);
+
+        return Product::whereNotNull('expiry_date')
+            ->whereDate('expiry_date', '<=', now()->addDays($days))
+            ->orderBy('expiry_date')
+            ->get(['id', 'name', 'stock', 'expiry_date']);
     }
 
     /**
@@ -364,15 +452,8 @@ class ProductController extends Controller
         
         // Update product status based on stock levels
         foreach ($products as $product) {
-            $newStatus = '';
-            if ($product->stock <= 5) {
-                $newStatus = 'Critical';
-            } elseif ($product->stock <= 10) {
-                $newStatus = 'Low Stock';
-            } else {
-                $newStatus = 'In Stock';
-            }
-            
+            $newStatus = Product::statusForStock($product->stock);
+
             // Only update if status has changed to avoid unnecessary queries
             if ($product->status !== $newStatus) {
                 $product->update(['status' => $newStatus]);
@@ -382,10 +463,17 @@ class ProductController extends Controller
         // Refresh products after potential updates
         $products = Product::all();
         
-        // Calculate statistics based on stock levels
+        // Calculate statistics based on stock levels. These bands must match
+        // Product::statusForStock() exactly, or the summary cards will disagree
+        // with the status badges in the table below them.
+        $criticalLevel = (int) Setting::get('critical_stock_level', 5);
+        $lowThreshold = (int) Setting::get('low_stock_threshold', 10);
+
         $totalProducts = $products->count();
-        $lowStockCount = $products->where('stock', '<=', 10)->where('stock', '>', 5)->count();
-        $criticalStockCount = $products->where('stock', '<=', 5)->count();
+        $criticalStockCount = $products->where('stock', '<=', $criticalLevel)->count();
+        $lowStockCount = $products->where('stock', '<=', $lowThreshold)
+            ->where('stock', '>', $criticalLevel)
+            ->count();
         $totalValue = $products->sum(function ($product) {
             return $product->price * $product->stock;
         });
@@ -398,7 +486,7 @@ class ProductController extends Controller
             $dynamicReorderPoint = self::calculateDynamicReorderPoint($product->id);
             $forecastedDemand = self::getForecastedDemand($product->id);
             $recommendedQuantity = max($forecastedDemand * 2, $dynamicReorderPoint);
-            $priority = $product->stock <= 5 ? 'High' : ($product->stock <= 10 ? 'Medium' : 'Low');
+            $priority = $product->stock <= Setting::get('critical_stock_level', 5) ? 'High' : ($product->stock <= Setting::get('low_stock_threshold', 10) ? 'Medium' : 'Low');
             
             return [
                 'id' => $product->id,
@@ -422,7 +510,7 @@ class ProductController extends Controller
         
         $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
         $notificationCount = $pendingApprovalCount + $reorderCount;
-        return view('pages.inventory', compact('products', 'totalProducts', 'lowStockCount', 'criticalStockCount', 'totalValue', 'reorderRecommendations', 'reorderCount', 'reorderNotifications', 'pendingApprovalCount', 'notificationCount'));
+        return view('pages.inventory', compact('products', 'totalProducts', 'lowStockCount', 'criticalStockCount', 'totalValue', 'reorderRecommendations', 'reorderCount', 'reorderNotifications', 'pendingApprovalCount', 'notificationCount', 'criticalLevel', 'lowThreshold'));
     }
 
     /**
@@ -440,20 +528,16 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'sku' => 'nullable|string|max:64|unique:products,sku',
             'category' => 'nullable|string|max:255',
             'stock' => 'required|integer|min:0',
             'price' => 'nullable|numeric',
             'reorder_level' => 'required|integer|min:0',
+            'expiry_date' => 'nullable|date',
         ]);
 
         // Auto-calculate status based on stock level
-        if ($validated['stock'] <= 5) {
-            $validated['status'] = 'Critical';
-        } elseif ($validated['stock'] <= 10) {
-            $validated['status'] = 'Low Stock';
-        } else {
-            $validated['status'] = 'In Stock';
-        }
+        $validated['status'] = Product::statusForStock($validated['stock']);
 
         $product = Product::create($validated);
 
@@ -482,24 +566,43 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'sku' => 'nullable|string|max:64|unique:products,sku,' . $product->id,
             'category' => 'nullable|string|max:255',
             'stock' => 'required|integer|min:0',
             'price' => 'nullable|numeric',
             'reorder_level' => 'required|integer|min:0',
+            'expiry_date' => 'nullable|date',
         ]);
 
-        // Auto-calculate status based on stock level
-        if ($validated['stock'] <= 5) {
-            $validated['status'] = 'Critical';
-        } elseif ($validated['stock'] <= 10) {
-            $validated['status'] = 'Low Stock';
-        } else {
-            $validated['status'] = 'In Stock';
+        // Stock changes go through InventoryService so every manual edit still
+        // gets a stock_movements ledger row; other fields update normally.
+        // Both writes happen in one transaction and share the same
+        // catch, so a concurrent sale that pushes the requested stock delta
+        // negative rolls back the whole edit instead of leaving name/price/
+        // status committed against a stock value that was never applied.
+        $stockDelta = $validated['stock'] - $product->stock;
+        unset($validated['stock']);
+        $validated['status'] = Product::statusForStock($request->input('stock'));
+
+        try {
+            $product = DB::transaction(function () use ($product, $validated, $stockDelta) {
+                $product->update($validated);
+
+                if ($stockDelta !== 0) {
+                    $product = (new InventoryService())->adjustStock($product, $stockDelta, 'adjustment', null, Auth::id(), 'Manual edit via product form');
+                }
+
+                return $product;
+            });
+        } catch (InsufficientStockException $e) {
+            $message = "Cannot reduce stock below zero: only {$e->available} available, tried to remove {$e->requested}.";
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
         }
-
-
-
-        $product->update($validated);
 
         // If staff edits a product, mark their latest approved edit request as completed
         if (Auth::user()->role === 'staff') {
@@ -575,56 +678,6 @@ class ProductController extends Controller
             }
             
             return redirect()->back()->with('error', 'Error deleting product');
-        }
-    }
-
-    /**
-     * Approve reorder recommendation for a product.
-     */
-    public function approveReorder(Request $request, $id)
-    {
-        try {
-            $product = Product::findOrFail($id);
-            $quantity = $request->input('quantity');
-            
-            // Update stock by adding the approved quantity
-            $newStock = $product->stock + $quantity;
-            $product->update(['stock' => $newStock]);
-            
-            // Auto-update status based on new stock level
-            $newStatus = '';
-            if ($newStock <= 5) {
-                $newStatus = 'Critical';
-            } elseif ($newStock <= 10) {
-                $newStatus = 'Low Stock';
-            } else {
-                $newStatus = 'In Stock';
-            }
-            
-            $product->update(['status' => $newStatus]);
-            
-            // For AJAX: return JSON
-            if ($request->wantsJson() || $request->ajax()) {
-                return response()->json([
-                    'success' => true, 
-                    'message' => 'Reorder approved successfully',
-                    'product' => $product,
-                    'new_stock' => $newStock
-                ]);
-            }
-            
-            // For normal form submit
-            return redirect()->back()->with('success', 'Reorder approved successfully!');
-            
-        } catch (\Exception $e) {
-            if (request()->wantsJson() || request()->ajax()) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Error approving reorder: ' . $e->getMessage()
-                ], 500);
-            }
-            
-            return redirect()->back()->with('error', 'Error approving reorder');
         }
     }
 

@@ -1,7 +1,55 @@
-/* Force consistent font for sidebar, dashboard, cards, and headings */
-.sidebar, .dashboard-title, .card, h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', Arial, Helvetica, sans-serif !important;
+/* Global Font - Inter */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* Force consistent Inter font across entire UI */
+*,
+*::before,
+*::after {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
 }
+
+html,
+body,
+.sidebar,
+.dashboard-title,
+.dashboard-card,
+.card,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div,
+a,
+button,
+input,
+select,
+textarea,
+table,
+th,
+td,
+label,
+.main-title,
+.subtitle,
+.user-name,
+.user-role,
+.desc,
+.main,
+.sub,
+.trend-up,
+.trend-down,
+.status-badge,
+.action-btn,
+.modern-table,
+.dashboard-subtitle,
+.notification-dropdown,
+.dropdown-menu {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
+}
+
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -10,11 +58,1004 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
 }
 
 body {
-    font-family: 'Inter', Arial, Helvetica, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
+
+html {
+    scroll-behavior: smooth;
+}
+
+/* ==========================================================================
+   Design tokens — single source of truth for color, radius and shadow.
+   Every page/component should reference these instead of hardcoding hex
+   values so the whole app stays visually consistent.
+   ========================================================================== */
+:root {
+    --color-primary: #6366f1;
+    --color-primary-dark: #4338ca;
+    --color-primary-light: #818cf8;
+    --color-primary-soft: #e0e7ff;
+
+    --color-success: #16a34a;
+    --color-success-bg: #dcfce7;
+    --color-success-text: #166534;
+
+    --color-warning: #d97706;
+    --color-warning-bg: #fef9c3;
+    --color-warning-text: #92400e;
+
+    --color-danger: #ef4444;
+    --color-danger-bg: #fee2e2;
+    --color-danger-text: #991b1b;
+
+    --color-info: #2563eb;
+    --color-info-bg: #dbeafe;
+    --color-info-text: #1e40af;
+
+    --color-neutral-bg: #f3f4f6;
+    --color-neutral-text: #374151;
+
+    --color-text: #18181b;
+    --color-text-muted: #6b7280;
+    --color-border: #f3f4f6;
+    --color-surface: #ffffff;
+    --color-page-bg: #f8fafc;
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-pill: 999px;
+
+    --shadow-sm: 0 1px 4px 0 rgba(99, 102, 241, 0.06);
+    --shadow-md: 0 2px 12px 0 rgba(99, 102, 241, 0.08);
+    --shadow-lg: 0 8px 32px 0 rgba(99, 102, 241, 0.16);
+
+    /* Motion. These values are the ones already used throughout the app —
+       tokenized so new work stays on the same scale. Small surfaces animate
+       faster than large ones. */
+    --ease-out: cubic-bezier(.4, 0, .2, 1);
+    --ease-spring: cubic-bezier(.4, 2, .6, 1);
+    --dur-fast: 120ms;
+    --dur-base: 180ms;
+    --dur-slow: 260ms;
+    --dur-page: 400ms;
+}
+
+/* Page shell — every page's content wrapper */
+.page-shell {
+    padding: 40px;
+    min-height: 100vh;
+    background: linear-gradient(120deg, var(--color-page-bg) 0%, var(--color-primary-soft) 100%);
+}
+
+.page-header {
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    margin-bottom: 0.2em;
+    letter-spacing: -1px;
+    color: var(--color-text);
+}
+
+.page-subtitle {
+    color: var(--color-primary);
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+/* Generic card */
+.card-panel {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 24px;
+}
+
+/* Stat card grid used on dashboard/analytics */
+.stat-grid {
+    display: flex;
+    gap: 32px;
+    margin-top: 24px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+}
+
+.stat-card {
+    flex: 1 1 220px;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 32px 28px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 220px;
+    border: none;
+    transition: transform 0.18s cubic-bezier(.4, 2, .6, 1), box-shadow 0.18s cubic-bezier(.4, 2, .6, 1);
+}
+
+.stat-card:hover {
+    transform: translateY(-7px) scale(1.03);
+    box-shadow: var(--shadow-lg);
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.stat-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Peso sign used in place of an icon (e.g. revenue stat cards / price inputs) */
+.currency-icon {
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.stat-icon .currency-icon {
+    font-size: 1.5rem;
+}
+
+.form-input-icon.currency-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.stat-icon--primary { background: var(--color-primary-soft); color: var(--color-primary); }
+.stat-icon--success { background: var(--color-success-bg); color: var(--color-success-text); }
+.stat-icon--warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.stat-icon--danger { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.stat-icon--info { background: var(--color-info-bg); color: var(--color-info-text); }
+
+.stat-card .main {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--color-text);
+    line-height: 1.1;
+}
+
+.stat-card .sub {
+    color: var(--color-text-muted);
+    font-size: 0.98rem;
+    margin-top: 4px;
+    text-align: center;
+}
+
+/* Unified data table */
+.data-table-container {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 24px 0 0 0;
+    margin-bottom: 32px;
+    overflow: hidden;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--color-surface);
+}
+
+.data-table th,
+.data-table td {
+    padding: 16px 18px;
+    font-size: 1.02rem;
+    text-align: left;
+    border-bottom: 1.5px solid var(--color-border);
+}
+
+.data-table thead th {
+    background: var(--color-neutral-bg);
+    color: var(--color-primary);
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.data-table tbody tr {
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.data-table tbody tr:hover {
+    background: var(--color-primary-soft);
+}
+
+/* Bootstrap table classes used inside forecasting.blade.php — mapped onto
+   the same look as .data-table so both systems render identically. */
+.table thead.thead-light th,
+.table thead.thead-dark th {
+    background: var(--color-neutral-bg) !important;
+    color: var(--color-primary) !important;
+    font-weight: 700;
+    border-color: var(--color-border);
+}
+
+/* Status badge — one component, semantic color modifiers. Existing
+   context-specific modifier names (pending/in-stock/role-admin/etc.) are
+   mapped onto the same four semantic colors so every badge in the app
+   reads consistently without having to rename them everywhere. */
+.status-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.status-badge--success,
+.status-badge.approved,
+.status-badge.in-stock,
+.status-badge.active,
+.role-staff {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
+}
+
+.status-badge--warning,
+.status-badge.pending,
+.status-badge.low,
+.role-manager {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
+}
+
+.status-badge--danger,
+.status-badge.rejected,
+.status-badge.critical,
+.status-badge.inactive,
+.role-admin {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+}
+
+.status-badge--info {
+    background: var(--color-info-bg);
+    color: var(--color-info-text);
+}
+
+.role-admin,
+.role-manager,
+.role-staff {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+/* Bootstrap's own `.badge-*` classes, used verbatim in forecasting.blade.php,
+   remapped onto the same semantic palette as .status-badge. */
+.badge {
+    border-radius: var(--radius-sm) !important;
+    font-weight: 600 !important;
+    padding: 6px 12px !important;
+}
+
+.badge-success { background: var(--color-success-bg) !important; color: var(--color-success-text) !important; }
+.badge-warning { background: var(--color-warning-bg) !important; color: var(--color-warning-text) !important; }
+.badge-danger { background: var(--color-danger-bg) !important; color: var(--color-danger-text) !important; }
+.badge-info { background: var(--color-info-bg) !important; color: var(--color-info-text) !important; }
+.badge-secondary { background: var(--color-neutral-bg) !important; color: var(--color-neutral-text) !important; }
+
+/* Action buttons — shared by approval workflow and forecasting's "Record Sale" */
+.btn-action {
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    padding: 8px 20px;
+    font-size: 1rem;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    transition: background 0.2s, box-shadow 0.2s;
+    color: #fff;
+    cursor: pointer;
+}
+
+.btn-action.approve,
+.btn-action.edit,
+.btn-primary {
+    background: linear-gradient(90deg, var(--color-primary) 0%, #60a5fa 100%) !important;
+    border-color: transparent !important;
+}
+
+.btn-action.approve:hover,
+.btn-action.edit:hover,
+.btn-primary:hover {
+    background: linear-gradient(90deg, var(--color-primary-dark) 0%, var(--color-primary) 100%) !important;
+}
+
+.btn-action.reject,
+.btn-action.delete {
+    background: linear-gradient(90deg, var(--color-danger) 0%, #dc3545 100%);
+}
+
+.btn-action.reject:hover,
+.btn-action.delete:hover {
+    background: linear-gradient(90deg, #b91c1c 0%, var(--color-danger) 100%);
+}
+
+/* Default "ghost" treatment for use outside the dashboard hero (which has
+   its own more specific override below for the semi-transparent-on-purple
+   look). Without this, a bare .btn-action.ghost has no background and
+   inherits the white text color, rendering invisible on light surfaces
+   like table rows and cards. */
+.btn-action.ghost {
+    background: var(--color-surface);
+    color: var(--color-primary);
+    border: 1.5px solid var(--color-primary);
+    box-shadow: none;
+}
+
+.btn-action.ghost:hover {
+    background: var(--color-primary-soft);
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-primary-soft) 60%, var(--color-primary) 100%);
+    color: var(--color-primary-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.25rem;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Shared scrim for every page modal.
+   z-index sits above the fixed header (2000) and sidebar (2500 / 3000 on
+   mobile) — the per-page overlays used to hardcode 1000-1050, so the app shell
+   painted straight over them. Kept below the confirm dialog (10050) and toast
+   (10060) so those still appear above a modal that opened them.
+   JS toggles `display` inline, so this stays display-less. */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(15, 23, 42, 0.5);
+    padding: 24px;
+    /* Tall modals scroll instead of being clipped by the viewport. */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* flex-start, not center: a flex item's default `stretch` alignment gives
+       the card a DEFINITE height (container minus its margins). Cards whose
+       content is taller then overflow their own white background — the form
+       spilling out below the card. flex-start keeps the card's height auto. */
+    align-items: flex-start;
+    justify-content: center;
+}
+
+/* `margin: auto` rather than centring on the container: on a scrollable flex
+   container, centre alignment pushes the overflowing top edge out of reach.
+   Auto margins centre when the card fits and collapse to 0 when it does not,
+   so the top stays reachable and the overlay scrolls. */
+.modal-overlay>* {
+    margin: auto;
+    flex-shrink: 0;
+}
+
+/* Generic modal card used across inventory/account-management */
+.modal-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Bootstrap's toast plugin only toggles the .show/.hide classes via JS —
+   it never sets inline display. The Bootstrap CDN stylesheet has no base
+   rule hiding an untouched .toast, so without this it sits invisible
+   (opacity: 0) but still in normal layout flow, silently intercepting
+   clicks over whatever it happens to overlap (e.g. the fixed header). */
+.toast:not(.show) {
+    display: none;
+}
+
+/* ==========================================================================
+   Responsive layout — off-canvas sidebar below 900px
+   ========================================================================== */
+.app-main {
+    margin-left: 260px;
+    margin-top: 70px;
+    transition: margin-left 0.25s ease;
+}
+
+body.sidebar-collapsed .app-main {
+    margin-left: 84px;
+}
+
+.hamburger-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.hamburger-btn:hover {
+    background: var(--color-primary-soft);
+}
+
+.hamburger-btn svg {
+    stroke: var(--color-primary);
+    width: 24px;
+    height: 24px;
+}
+
+/* Kept in the layout at all times and faded, so it matches the sidebar's
+   already-animated transform instead of popping. `visibility` is delayed on
+   exit so the scrim stays painted while it fades, and instant on enter. */
+.sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    top: 70px;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 2500;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--dur-slow) var(--ease-out),
+        visibility 0s linear var(--dur-slow);
+}
+
+.sidebar-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity var(--dur-slow) var(--ease-out),
+        visibility 0s linear 0s;
+}
+
+@media (max-width: 900px) {
+    .hamburger-btn {
+        display: flex;
+    }
+
+    .app-main,
+    body.sidebar-collapsed .app-main {
+        margin-left: 0;
+    }
+
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 3000;
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .header-content {
+        padding: 0 20px;
+    }
+
+    .main-title {
+        font-size: 1.4rem;
+    }
+
+    .subtitle {
+        display: none;
+    }
+
+    .header-actions {
+        gap: 14px;
+    }
+
+    .user-info {
+        display: none;
+    }
+
+    .page-shell {
+        padding: 20px;
+    }
+
+    .page-title {
+        font-size: 1.6rem;
+    }
+
+    .stat-grid {
+        gap: 16px;
+    }
+
+    .stat-card {
+        flex: 1 1 100%;
+        min-width: 0;
+        padding: 20px;
+    }
+}
+
+@media (max-width: 560px) {
+    .header-content {
+        padding: 0 14px;
+    }
+
+    .main-title {
+        font-size: 1.15rem;
+    }
+
+    .header-brand .brand-mark {
+        display: none;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 10px 10px;
+        font-size: 0.92rem;
+    }
+}
+
+/* ==========================================================================
+   Shared UI kit — confirm dialog, toast, button spinner (components/ui-kit.blade.php)
+   ========================================================================== */
+/* Always laid out and faded rather than display-toggled, so the scrim can
+   animate out as well as in. `pointer-events: none` while hidden is what stops
+   this full-viewport overlay from swallowing every click on the page. */
+.confirm-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 10050;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--dur-slow) var(--ease-out),
+        visibility 0s linear var(--dur-slow);
+}
+
+.confirm-overlay.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity var(--dur-slow) var(--ease-out),
+        visibility 0s linear 0s;
+}
+
+/* The card can no longer rely on .modal-card's modernFadeIn: that keyframe only
+   fires on a display change, and the overlay no longer has one. Drive it from
+   the .show class instead so it animates both ways, in step with the scrim. */
+.confirm-overlay .confirm-modal {
+    animation: none;
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+    transition: opacity var(--dur-slow) var(--ease-out),
+        transform var(--dur-slow) var(--ease-out);
+}
+
+.confirm-overlay.show .confirm-modal {
+    opacity: 1;
+    transform: none;
+}
+
+.confirm-modal {
+    padding: 32px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+}
+
+.confirm-modal-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.confirm-modal-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.confirm-modal-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 8px;
+}
+
+.confirm-modal-message {
+    color: var(--color-text-muted);
+    font-size: 0.98rem;
+    margin-bottom: 24px;
+}
+
+.confirm-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* Slides in from its own edge rather than using the generic rise — it is
+   anchored top-right, so lateral motion reads as "arriving from off-screen". */
+.app-toast {
+    display: flex;
+    position: fixed;
+    /* Clears the 70px fixed header — toasts now fire on every flashed message,
+       so at top: 20px they sat over the notification bell and user menu. */
+    top: 90px;
+    right: 20px;
+    min-width: 300px;
+    max-width: 380px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    border-left: 6px solid var(--color-success);
+    padding: 16px 18px;
+    z-index: 10060;
+    align-items: flex-start;
+    gap: 12px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(16px);
+    transition: opacity var(--dur-slow) var(--ease-out),
+        transform var(--dur-slow) var(--ease-out),
+        visibility 0s linear var(--dur-slow);
+}
+
+.app-toast.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+    transition: opacity var(--dur-slow) var(--ease-out),
+        transform var(--dur-slow) var(--ease-out),
+        visibility 0s linear 0s;
+}
+
+.app-toast-icon svg {
+    width: 26px;
+    height: 26px;
+}
+
+.app-toast-body {
+    flex: 1;
+}
+
+.app-toast-title {
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 2px;
+}
+
+.app-toast-message {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    /* Lets callers pass "\n" for line breaks without needing raw HTML. */
+    white-space: pre-line;
+}
+
+.app-toast-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* currentColor, not white: this spinner also renders inside .ghost and other
+   light buttons, where a white-on-white ring was invisible. */
+.spinner-inline {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: -2px;
+    opacity: 0.85;
+    animation: spinner-inline-spin 0.6s linear infinite;
+}
+
+@keyframes spinner-inline-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ==========================================================================
+   Table upgrades — sortable headers + bulk action bar (inventory table)
+   ========================================================================== */
+.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable-th:hover {
+    color: var(--color-primary-dark);
+}
+
+.sort-arrow {
+    display: inline-block;
+    width: 10px;
+    font-size: 0.75rem;
+    color: var(--color-primary);
+}
+
+/* ==========================================================================
+   Modern system-wide refinements — brand mark, icon-prefixed inputs,
+   lift-on-hover interactions, entrance animations. Mirrors the language
+   established on the login page so the whole app reads as one product.
+   ========================================================================== */
+.brand-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.brand-mark img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Icon-prefixed form input, same shape as the login page fields */
+.form-input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.form-input-group .form-input-icon {
+    position: absolute;
+    left: 14px;
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.form-input-group input,
+.form-input-group select {
+    width: 100%;
+    padding: 12px 14px 12px 42px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid #e5e7eb;
+    font-size: 0.98rem;
+    background: var(--color-page-bg);
+    transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.form-input-group input:focus,
+.form-input-group select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
+    background: var(--color-surface);
+}
+
+/* Lift-on-hover for primary actions, matching the login submit button */
+.btn-action {
+    transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.btn-action:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-action:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.stat-card,
+.card-panel,
+.data-table-container {
+    animation: modernFadeIn 0.4s cubic-bezier(.4, 0, .2, 1);
+}
+
+.modal-card {
+    animation: modernFadeIn 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+@keyframes modernFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==========================================================================
+   Dashboard hero — same gradient brand panel treatment as the login page
+   ========================================================================== */
+.dashboard-hero {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    background: linear-gradient(150deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    border-radius: var(--radius-lg);
+    padding: 32px 36px;
+    margin-bottom: 28px;
+    color: #fff;
+    box-shadow: var(--shadow-lg);
+}
+
+.dashboard-hero::before,
+.dashboard-hero::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+}
+
+.dashboard-hero::before {
+    width: 260px;
+    height: 260px;
+    top: -120px;
+    right: -60px;
+}
+
+.dashboard-hero::after {
+    width: 160px;
+    height: 160px;
+    bottom: -90px;
+    right: 140px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.dashboard-hero-greeting {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-hero-sub {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-hero-actions {
+    display: flex;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+}
+
+.dashboard-hero-actions .btn-action.ghost {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+.dashboard-hero-actions .btn-action.ghost:hover {
+    background: rgba(255, 255, 255, 0.26);
+}
+
+/* Gradient top accent on stat cards, matching the hero/button gradient */
+.stat-card {
+    position: relative;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.stat-card:hover::before {
+    opacity: 1;
+}
+
+/* Generic success/error banner, used on pages outside the login flow
+   (e.g. Settings) that need the same alert treatment as the auth pages. */
+.alert-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 0.92rem;
+}
+
+.alert-banner svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.alert-banner--success {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
+}
+
+.alert-banner--error {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+}
+
+/* ==========================================================================
+   Reduced motion
+   Last in the file, and !important, because several components declare their
+   transitions in in-body <style> blocks (sidebar, topheader, forecasting, pos)
+   which would otherwise outrank this on source order.
+   Durations are collapsed rather than removed so transitionend/animationend
+   listeners still fire and nothing gets stuck mid-state.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        animation-delay: 0s !important;
+        transition-duration: 0.01ms !important;
+        /* Delay must go too: the show/hide pattern above defers `visibility`
+           by a full duration, which would otherwise survive as a visible lag. */
+        transition-delay: 0s !important;
+        scroll-behavior: auto !important;
+    }
 }

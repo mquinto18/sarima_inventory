@@ -14,23 +14,23 @@ class ProductSeeder extends Seeder
     {
         $products = [
             [
-                'name' => 'POLO SHIRT',
-                'category' => 'Apparel',
-                'price' => 1000,
+                'name' => 'Paracetamol 500mg',
+                'category' => 'Medicine',
+                'price' => 5,
                 'stock' => 500,
                 'reorder_level' => 50
             ],
             [
-                'name' => 'CAP',
-                'category' => 'Accessories',
-                'price' => 500,
+                'name' => 'Vitamin C 500mg',
+                'category' => 'Vitamins & Supplements',
+                'price' => 8,
                 'stock' => 300,
                 'reorder_level' => 30
             ],
             [
-                'name' => 'JEANS',
-                'category' => 'Apparel',
-                'price' => 2000,
+                'name' => 'Amoxicillin 500mg',
+                'category' => 'Medicine',
+                'price' => 12,
                 'stock' => 400,
                 'reorder_level' => 40
             ]

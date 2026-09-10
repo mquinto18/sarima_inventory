@@ -5,7 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Sale;
 use App\Models\Product;
+use App\Models\Setting;
+use App\Services\InventoryService;
+use App\Exceptions\InsufficientStockException;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -13,11 +17,25 @@ use Exception;
 class SalesController extends Controller
 {
     /**
+     * Forecasting is a manager/admin concern - staff (cashier-like role)
+     * should never be able to view it, even by guessing the URL, matching
+     * the denyStaff() pattern used in SupplierController/PurchaseOrderController.
+     */
+    private function denyStaff()
+    {
+        if (Auth::user()->role === 'staff') {
+            abort(403);
+        }
+    }
+
+    /**
      * Display sales dashboard with Enhanced SARIMA forecasting
      * Implements comprehensive data preprocessing, seasonality analysis, and predictive restocking
      */
     public function index()
     {
+        $this->denyStaff();
+
         $reorderCount = \App\Http\Controllers\ProductController::getReorderCount();
         $reorderNotifications = \App\Http\Controllers\ProductController::getReorderNotifications();
 
@@ -49,84 +67,29 @@ class SalesController extends Controller
         // Step 9: Get sales trend data for charts
         $salesTrend = \App\Http\Controllers\ProductController::getSalesTrendData();
 
-            $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
-            $notificationCount = $pendingApprovalCount + $reorderCount;
-            return view('pages.forecasting', compact(
-                'reorderCount',
-                'reorderNotifications',
-                'monthlySales',
-                'topProducts',
-                'salesStats',
-                'forecast',
-                'demandForecast',
-                'seasonalityAnalysis',
-                'restockingRecommendations',
-                'forecastAccuracy',
-                'preprocessedData',
-                'salesTrend',
-                'pendingApprovalCount',
-                'notificationCount'
-            ));
+        $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
+        $notificationCount = $pendingApprovalCount + $reorderCount;
+        return view('pages.forecasting', compact(
+            'reorderCount',
+            'reorderNotifications',
+            'monthlySales',
+            'topProducts',
+            'salesStats',
+            'forecast',
+            'demandForecast',
+            'seasonalityAnalysis',
+            'restockingRecommendations',
+            'forecastAccuracy',
+            'preprocessedData',
+            'salesTrend',
+            'pendingApprovalCount',
+            'notificationCount'
+        ));
     }
 
     /**
      * Store a new sale record
      */
-    public function store(Request $request)
-    {
-        try {
-            $request->validate([
-                'product_id' => 'required|exists:products,id',
-                'quantity_sold' => 'required|integer|min:1',
-                'sale_date' => 'required|date'
-            ]);
-
-            $product = Product::findOrFail($request->product_id);
-            $totalAmount = $request->quantity_sold * $product->price;
-            $monthYear = Carbon::parse($request->sale_date)->format('Y-m');
-            $sale = Sale::create([
-                'product_id' => $request->product_id,
-                'quantity_sold' => $request->quantity_sold,
-                'unit_price' => $product->price,
-                'total_amount' => $totalAmount,
-                'sale_date' => $request->sale_date,
-                'month_year' => $monthYear
-            ]);
-
-            // Update product stock
-            $product->decrement('stock', $request->quantity_sold);
-
-            // Get updated statistics after sale
-            $updatedStats = $this->getSalesStatistics();
-            $updatedTopProducts = $this->getTopSellingProducts();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Sale recorded successfully',
-                'sale_id' => $sale->id,
-                'sale_details' => [
-                    'product_name' => $product->name,
-                    'quantity_sold' => $request->quantity_sold,
-                    'unit_price' => $product->price,
-                    'total_amount' => $totalAmount,
-                    'sale_date' => $request->sale_date,
-                    // 'sale_month' => $saleMonth, // No longer stored in DB
-                    'remaining_stock' => $product->fresh()->stock
-                ],
-                'updated_statistics' => [
-                    'current_month_revenue' => $updatedStats['current_month_revenue'],
-                    'total_sales_count' => $updatedStats['total_sales_count'],
-                    'growth_percentage' => $updatedStats['growth_percentage'],
-                    'top_products' => $updatedTopProducts
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error recording sale: ' . $e->getMessage()
-            ], 500);
-        }
-    }
 
     /**
      * Get monthly sales data for the last 12 months
@@ -218,7 +181,7 @@ class SalesController extends Controller
         $months = [];
         for ($i = 11; $i >= 0; $i--) {
             $month = Carbon::now()->subMonths($i)->format('Y-m');
-            $months[$month] = $salesData->get($month, (object)[
+            $months[$month] = $salesData->get($month, (object) [
                 'total_quantity' => 0,
                 'total_revenue' => 0
             ]);
@@ -227,7 +190,7 @@ class SalesController extends Controller
         // Extract revenue values for forecasting
         $revenues = array_map(function ($data) {
             return is_object($data) && isset($data->total_revenue)
-                ? (float)$data->total_revenue
+                ? (float) $data->total_revenue
                 : 0;
         }, $months);
 
@@ -245,7 +208,7 @@ class SalesController extends Controller
 
                 // Generate 6-month forecast
                 for ($i = 1; $i <= 6; $i++) {
-                    $baseValue = count($revenues) > 0 ? (float)end($revenues) : 0;
+                    $baseValue = count($revenues) > 0 ? (float) end($revenues) : 0;
                     $trendComponent = $trend * $i;
                     $seasonalIndex = ($n + $i - 1) % 3;
                     $seasonalComponent = isset($seasonal[$seasonalIndex]) ? $seasonal[$seasonalIndex] : 0;
@@ -279,7 +242,8 @@ class SalesController extends Controller
         });
 
         $n = count($data);
-        if ($n < 2) return 0;
+        if ($n < 2)
+            return 0;
 
         // Reindex array to ensure consecutive indices
         $data = array_values($data);
@@ -291,7 +255,7 @@ class SalesController extends Controller
 
         for ($i = 0; $i < $n; $i++) {
             $x = $i + 1;
-            $y = (float)$data[$i]; // Ensure numeric value
+            $y = (float) $data[$i]; // Ensure numeric value
 
             $sumX += $x;
             $sumY += $y;
@@ -300,7 +264,8 @@ class SalesController extends Controller
         }
 
         $denominator = ($n * $sumX2 - $sumX * $sumX);
-        if ($denominator == 0) return 0; // Avoid division by zero
+        if ($denominator == 0)
+            return 0; // Avoid division by zero
 
         $slope = ($n * $sumXY - $sumX * $sumY) / $denominator;
         return $slope;
@@ -317,7 +282,8 @@ class SalesController extends Controller
         });
 
         $n = count($data);
-        if ($n == 0) return array_fill(0, $period, 0);
+        if ($n == 0)
+            return array_fill(0, $period, 0);
 
         // Reindex array to ensure consecutive indices
         $data = array_values($data);
@@ -328,7 +294,7 @@ class SalesController extends Controller
         // Calculate average for each season
         for ($i = 0; $i < $n; $i++) {
             $seasonIndex = $i % $period;
-            $seasonal[$seasonIndex] += (float)$data[$i];
+            $seasonal[$seasonIndex] += (float) $data[$i];
             $counts[$seasonIndex]++;
         }
 
@@ -354,7 +320,7 @@ class SalesController extends Controller
         $months = [];
         for ($i = 11; $i >= 0; $i--) {
             $month = Carbon::now()->subMonths($i)->format('Y-m');
-            $months[$month] = $monthlySales->get($month, (object)[
+            $months[$month] = $monthlySales->get($month, (object) [
                 'total_quantity' => 0,
                 'total_revenue' => 0
             ]);
@@ -363,7 +329,7 @@ class SalesController extends Controller
         // Extract quantity values for forecasting
         $quantities = array_map(function ($data) {
             return is_object($data) && isset($data->total_quantity)
-                ? (float)$data->total_quantity
+                ? (float) $data->total_quantity
                 : 0;
         }, $months);
 
@@ -379,7 +345,7 @@ class SalesController extends Controller
 
                 // Generate 6-month demand forecast
                 for ($i = 1; $i <= 6; $i++) {
-                    $baseValue = count($quantities) > 0 ? (float)end($quantities) : 0;
+                    $baseValue = count($quantities) > 0 ? (float) end($quantities) : 0;
                     $trendComponent = $trend * $i;
                     $seasonalIndex = ($n + $i - 1) % 3;
                     $seasonalComponent = isset($seasonal[$seasonalIndex]) ? $seasonal[$seasonalIndex] : 0;
@@ -477,7 +443,7 @@ class SalesController extends Controller
         // Fill missing months with zero values for complete time series
         for ($i = 23; $i >= 0; $i--) { // Extended to 24 months for better analysis
             $month = Carbon::now()->subMonths($i)->format('Y-m');
-            $salesData = $monthlySales->get($month, (object)[
+            $salesData = $monthlySales->get($month, (object) [
                 'total_quantity' => 0,
                 'total_revenue' => 0,
                 'sales_count' => 0
@@ -517,9 +483,9 @@ class SalesController extends Controller
         ];
 
         $revenues = array_column($preprocessedData, 'revenue');
-        
+
         // Filter out zero revenues for better seasonality calculation
-        $nonZeroRevenues = array_filter($revenues, function($rev) {
+        $nonZeroRevenues = array_filter($revenues, function ($rev) {
             return $rev > 0;
         });
 
@@ -537,7 +503,7 @@ class SalesController extends Controller
         }
 
         // Calculate overall average from non-zero revenues only
-        $overallAverage = count($nonZeroRevenues) > 0 ? 
+        $overallAverage = count($nonZeroRevenues) > 0 ?
             array_sum($nonZeroRevenues) / count($nonZeroRevenues) : 0;
 
         // Calculate seasonal indices based on actual data
@@ -546,7 +512,7 @@ class SalesController extends Controller
             $analysis['seasonal_indices'][$month] = $overallAverage > 0 ?
                 $monthAverage / $overallAverage : 1;
         }
-        
+
         // Fill in missing months with neutral seasonal index (1.0)
         for ($m = 1; $m <= 12; $m++) {
             $monthStr = str_pad($m, 2, '0', STR_PAD_LEFT);
@@ -613,6 +579,8 @@ class SalesController extends Controller
      */
     private function generateEnhancedSarimaForecast($preprocessedData, $seasonalityAnalysis)
     {
+        $forecastPeriod = (int) Setting::get('default_forecast_period', 6);
+
         $forecast = [
             'predicted' => [],
             'confidence_intervals' => [],
@@ -620,7 +588,7 @@ class SalesController extends Controller
             'seasonal_component' => [],
             'months' => [],
             'historical' => [],
-            'forecast_horizon' => 6,
+            'forecast_horizon' => $forecastPeriod,
             'model_parameters' => [
                 'p' => 1,
                 'd' => 1,
@@ -632,64 +600,177 @@ class SalesController extends Controller
             ]
         ];
 
-        // Prepare sales data for Python script
+        // Prepare sales data
         $sales = [];
         foreach ($preprocessedData as $data) {
             $forecast['months'][] = $data['month'];
             $forecast['historical'][] = round($data['revenue'], 2);
             $sales[] = [
                 'month' => $data['month'],
-                'revenue' => (float)$data['revenue']
+                'revenue' => (float) $data['revenue']
             ];
         }
 
-        $input = [
-            'sales' => $sales,
-            'forecast_period' => 6
-        ];
+        // Check if proc_open is available (disabled on some shared hosts like InfinityFree)
+        if (function_exists('proc_open')) {
+            // Try to use Python SARIMA script
+            $pythonScript = base_path('python/sarima_forecast.py');
+            $pythonBinary = $this->resolvePythonBinary();
 
-        // Call the Python SARIMA script
-        $pythonScript = base_path('python/sarima_forecast.py');
-        $process = proc_open(
-            'python "' . $pythonScript . '"',
-            [
-                0 => ['pipe', 'r'], // stdin
-                1 => ['pipe', 'w'], // stdout
-                2 => ['pipe', 'w']  // stderr
-            ],
-            $pipes
-        );
+            if ($pythonBinary && file_exists($pythonScript)) {
+                $input = [
+                    'sales' => $sales,
+                    'forecast_period' => $forecastPeriod
+                ];
 
-        if (is_resource($process)) {
-            fwrite($pipes[0], json_encode($input));
-            fclose($pipes[0]);
-            $output = stream_get_contents($pipes[1]);
-            fclose($pipes[1]);
-            $error = stream_get_contents($pipes[2]);
-            fclose($pipes[2]);
-            $returnCode = proc_close($process);
+                $process = proc_open(
+                    escapeshellarg($pythonBinary) . ' ' . escapeshellarg($pythonScript),
+                    [
+                        0 => ['pipe', 'r'], // stdin
+                        1 => ['pipe', 'w'], // stdout
+                        2 => ['pipe', 'w']  // stderr
+                    ],
+                    $pipes
+                );
 
-            if ($returnCode === 0 && $output) {
-                $sarima = json_decode($output, true);
-                if ($sarima && isset($sarima['months'], $sarima['predicted'])) {
-                    foreach ($sarima['months'] as $idx => $month) {
-                        $forecast['predicted'][$month] = round($sarima['predicted'][$idx], 2);
-                        $forecast['confidence_intervals'][$month] = [
-                            'lower' => isset($sarima['conf_lower'][$idx]) ? round($sarima['conf_lower'][$idx], 2) : null,
-                            'upper' => isset($sarima['conf_upper'][$idx]) ? round($sarima['conf_upper'][$idx], 2) : null,
-                            'confidence_level' => 95
-                        ];
+                if (is_resource($process)) {
+                    fwrite($pipes[0], json_encode($input));
+                    fclose($pipes[0]);
+                    $output = stream_get_contents($pipes[1]);
+                    fclose($pipes[1]);
+                    $error = stream_get_contents($pipes[2]);
+                    fclose($pipes[2]);
+                    $returnCode = proc_close($process);
+
+                    if ($returnCode === 0 && $output) {
+                        $sarima = json_decode($output, true);
+                        if ($sarima && isset($sarima['months'], $sarima['predicted'])) {
+                            foreach ($sarima['months'] as $idx => $month) {
+                                $forecast['predicted'][$month] = round($sarima['predicted'][$idx], 2);
+                                $forecast['confidence_intervals'][$month] = [
+                                    'lower' => isset($sarima['conf_lower'][$idx]) ? round(max(0, $sarima['conf_lower'][$idx]), 2) : null,
+                                    'upper' => isset($sarima['conf_upper'][$idx]) ? round($sarima['conf_upper'][$idx], 2) : null,
+                                    'confidence_level' => 95
+                                ];
+                            }
+                            $forecast['source'] = 'python_sarimax';
+                            Log::info('Forecast generated via real Python SARIMAX model.', ['binary' => $pythonBinary]);
+                            return $forecast; // Return early if Python worked
+                        }
                     }
+
+                    Log::warning('Python SARIMAX call did not produce usable output, falling back to PHP trend forecast.', [
+                        'binary' => $pythonBinary,
+                        'return_code' => $returnCode ?? null,
+                        'stderr' => $error ?? null,
+                    ]);
                 }
             } else {
-                // Log error if Python script fails
-                Log::error('SARIMA Python error: ' . $error);
+                Log::warning('No usable Python interpreter found for SARIMAX, falling back to PHP trend forecast.');
             }
-        } else {
-            Log::error('Could not start SARIMA Python process.');
         }
 
+        // PHP-only fallback for SARIMA forecasting (when proc_open is disabled)
+        $forecast = $this->generatePhpSarimaFallback($forecast, $preprocessedData, $seasonalityAnalysis);
+
         return $forecast;
+    }
+
+    /**
+     * PHP-only SARIMA fallback for shared hosting without proc_open
+     */
+    private function generatePhpSarimaFallback($forecast, $preprocessedData, $seasonalityAnalysis)
+    {
+        $revenues = array_column($preprocessedData, 'revenue');
+        $n = count($revenues);
+
+        if ($n < 3) {
+            return $forecast;
+        }
+
+        // Calculate trend using simple linear regression
+        $trend = $this->calculateTrend($revenues);
+
+        // Get seasonal indices from seasonality analysis
+        $seasonalIndices = $seasonalityAnalysis['seasonal_indices'] ?? [];
+
+        // Calculate average revenue (excluding zeros for better accuracy)
+        $nonZeroRevenues = array_filter($revenues, function ($r) {
+            return $r > 0; });
+        $avgRevenue = count($nonZeroRevenues) > 0 ? array_sum($nonZeroRevenues) / count($nonZeroRevenues) : 0;
+
+        // Use the last few months' average as base
+        $recentRevenues = array_slice($revenues, -3);
+        $recentAvg = count($recentRevenues) > 0 ? array_sum($recentRevenues) / count($recentRevenues) : $avgRevenue;
+        $baseValue = $recentAvg > 0 ? $recentAvg : $avgRevenue;
+
+        // Generate forecast for the configured horizon
+        $forecastPeriod = (int) Setting::get('default_forecast_period', 6);
+        for ($i = 1; $i <= $forecastPeriod; $i++) {
+            $forecastMonth = Carbon::now()->addMonths($i)->format('Y-m');
+            $monthNum = Carbon::now()->addMonths($i)->format('m');
+
+            // Apply trend component
+            $trendComponent = $trend * $i;
+
+            // Apply seasonal component
+            $seasonalIndex = $seasonalIndices[$monthNum] ?? 1.0;
+            $seasonalComponent = ($seasonalIndex - 1) * $baseValue;
+
+            // Calculate predicted value with trend and seasonality
+            $predictedValue = max(0, $baseValue + $trendComponent + $seasonalComponent);
+
+            // Add some randomness for realistic confidence intervals
+            $volatility = $this->calculateVolatility($revenues);
+            $uncertainty = $volatility * sqrt($i); // Uncertainty grows with forecast horizon
+
+            $forecast['predicted'][$forecastMonth] = round($predictedValue, 2);
+            $forecast['confidence_intervals'][$forecastMonth] = [
+                'lower' => round(max(0, $predictedValue - (1.96 * $uncertainty)), 2),
+                'upper' => round($predictedValue + (1.96 * $uncertainty), 2),
+                'confidence_level' => 95
+            ];
+            $forecast['trend_component'][$forecastMonth] = round($trendComponent, 2);
+            $forecast['seasonal_component'][$forecastMonth] = round($seasonalComponent, 2);
+        }
+
+        $forecast['source'] = 'php_fallback';
+
+        return $forecast;
+    }
+
+    /**
+     * Locate a Python interpreter that can run python/sarima_forecast.py.
+     * Prefers the project-local virtualenv (has pandas/statsmodels installed)
+     * over whatever "python"/"python3" happens to be on PATH.
+     */
+    private function resolvePythonBinary()
+    {
+        $candidates = [
+            base_path('python/venv/bin/python3'),
+            base_path('python/venv/Scripts/python.exe'),
+            'python3',
+            'python',
+        ];
+
+        foreach ($candidates as $candidate) {
+            // Absolute paths: just check the file exists and is executable.
+            if (str_starts_with($candidate, '/') || preg_match('/^[A-Za-z]:\\\\/', $candidate)) {
+                if (is_file($candidate) && is_executable($candidate)) {
+                    return $candidate;
+                }
+                continue;
+            }
+
+            // Bare command names: confirm they resolve on PATH before trusting them.
+            $which = DIRECTORY_SEPARATOR === '\\' ? 'where' : 'command -v';
+            $resolved = trim((string) shell_exec($which . ' ' . escapeshellarg($candidate) . ' 2>/dev/null'));
+            if ($resolved !== '') {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -776,13 +857,24 @@ class SalesController extends Controller
 
     private function handleOutliers($data)
     {
-        // Simple outlier detection and smoothing
-        $revenues = array_column($data, 'revenue');
+        // Simple outlier detection and smoothing. Months with no sales yet
+        // (zero-padded by preprocessSalesData) are excluded from the mean/
+        // stddev calculation, otherwise they drag the mean toward zero and
+        // make genuine revenue months look like outliers.
+        $revenues = array_values(array_filter(array_column($data, 'revenue'), fn($r) => $r > 0));
+
+        // With few real months, a 2-stddev test can't tell a genuine growth
+        // spike from noise — it just erases real data. Skip smoothing until
+        // there's enough history for the threshold to be meaningful.
+        if (count($revenues) < 8) {
+            return $data;
+        }
+
         $mean = array_sum($revenues) / count($revenues);
         $stdDev = $this->calculateStandardDeviation($revenues, $mean);
 
         foreach ($data as $key => &$item) {
-            if (abs($item['revenue'] - $mean) > 2 * $stdDev) {
+            if ($item['revenue'] > 0 && abs($item['revenue'] - $mean) > 2 * $stdDev) {
                 // Replace outlier with moving average
                 $item['revenue'] = $mean;
             }
@@ -848,7 +940,8 @@ class SalesController extends Controller
 
     private function calculateProductDemand($productSales)
     {
-        if ($productSales->isEmpty()) return 0;
+        if ($productSales->isEmpty())
+            return 0;
 
         // Calculate monthly average demand
         $totalQuantity = $productSales->sum('quantity_sold');
@@ -871,8 +964,10 @@ class SalesController extends Controller
         $avgDemand = $this->calculateProductDemand($salesHistory);
         $daysOfStock = $avgDemand > 0 ? ($product->stock / $avgDemand) * 30 : 999;
 
-        if ($daysOfStock <= 7) return 'HIGH';
-        if ($daysOfStock <= 14) return 'MEDIUM';
+        if ($daysOfStock <= 7)
+            return 'HIGH';
+        if ($daysOfStock <= 14)
+            return 'MEDIUM';
         return 'LOW';
     }
 
@@ -880,7 +975,8 @@ class SalesController extends Controller
     {
         $avgDailyDemand = $this->calculateProductDemand($salesHistory) / 30;
 
-        if ($avgDailyDemand <= 0) return 999;
+        if ($avgDailyDemand <= 0)
+            return 999;
 
         return round($product->stock / $avgDailyDemand);
     }
@@ -908,9 +1004,12 @@ class SalesController extends Controller
     {
         $stockRatio = $product->stock > 0 ? $forecastedDemand / $product->stock : 999;
 
-        if ($stockRatio >= 1.5) return 'HIGH';
-        if ($stockRatio >= 1.0) return 'MEDIUM';
-        if ($stockRatio >= 0.5) return 'LOW';
+        if ($stockRatio >= 1.5)
+            return 'HIGH';
+        if ($stockRatio >= 1.0)
+            return 'MEDIUM';
+        if ($stockRatio >= 0.5)
+            return 'LOW';
         return 'MINIMAL';
     }
 }

@@ -2,120 +2,351 @@
 
 @section('content')
 <style>
-    .login-bg {
+    .auth-shell {
         min-height: 100vh;
-        background: linear-gradient(135deg, #e0e7ff 0%, #f2f6ff 100%);
+        display: flex;
+        background: var(--color-surface);
+    }
+
+    .auth-brand-panel {
+        flex: 1 1 46%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 28px;
+        padding: 64px;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(150deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+        color: #fff;
+    }
+
+    .auth-brand-panel::before,
+    .auth-brand-panel::after {
+        content: '';
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .auth-brand-panel::before {
+        width: 420px;
+        height: 420px;
+        top: -160px;
+        right: -140px;
+    }
+
+    .auth-brand-panel::after {
+        width: 280px;
+        height: 280px;
+        bottom: -120px;
+        left: -80px;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .auth-brand-logo {
+        width: 64px;
+        height: 64px;
+        border-radius: var(--radius-md);
         display: flex;
         align-items: center;
         justify-content: center;
+        position: relative;
+        z-index: 1;
+        overflow: hidden;
     }
-    .login-card {
-        border-radius: 20px;
-        min-width: 400px;
-        max-width: 100%;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-        background: #fff;
-        animation: fadeIn 0.7s cubic-bezier(.4,0,.2,1);
+
+    .auth-brand-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(30px); }
+
+    .auth-brand-title {
+        font-size: 2.4rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin: 0;
+        position: relative;
+        z-index: 1;
+    }
+
+    .auth-brand-subtitle {
+        font-size: 1.1rem;
+        color: rgba(255, 255, 255, 0.85);
+        max-width: 380px;
+        line-height: 1.5;
+        position: relative;
+        z-index: 1;
+    }
+
+    .auth-brand-features {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 12px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .auth-brand-feature {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 0.98rem;
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .auth-brand-feature svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+
+    .auth-form-panel {
+        flex: 1 1 54%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+    }
+
+    .auth-form-card {
+        width: 100%;
+        max-width: 400px;
+        animation: authFadeIn 0.5s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    @keyframes authFadeIn {
+        from { opacity: 0; transform: translateY(16px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    .login-logo {
-        width: 56px;
-        height: 56px;
-        margin-bottom: 10px;
-        filter: drop-shadow(0 2px 8px #a5b4fc33);
+
+    .auth-form-heading {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: var(--color-text);
+        margin-bottom: 6px;
     }
-    .input-group-text {
-        background: #f2f6ff;
-        border: none;
+
+    .auth-form-subheading {
+        color: var(--color-text-muted);
+        margin-bottom: 32px;
+        font-size: 0.98rem;
     }
-    .form-control:focus {
-        box-shadow: 0 0 0 2px #6366f1;
-        border-color: #6366f1;
+
+    .auth-field {
+        margin-bottom: 20px;
     }
-    .login-title {
-        font-weight: 700;
-        font-size: 1.5rem;
-        letter-spacing: 0.5px;
-    }
-    .login-subtitle {
-        font-size: 1rem;
-        color: #6b7280;
-    }
-    .login-btn {
-        background: linear-gradient(90deg, #6366f1 0%, #4f46e5 100%);
-        border: none;
+
+    .auth-field label {
+        display: block;
         font-weight: 600;
-        letter-spacing: 0.5px;
-        transition: background 0.2s;
+        font-size: 0.9rem;
+        color: var(--color-text);
+        margin-bottom: 7px;
     }
-    .login-btn:hover {
-        background: linear-gradient(90deg, #4f46e5 0%, #6366f1 100%);
+
+    .auth-input-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
     }
-    .alert-danger {
-        font-size: 0.95rem;
-        border-radius: 8px;
+
+    .auth-input-wrap svg.auth-input-icon {
+        position: absolute;
+        left: 14px;
+        width: 19px;
+        height: 19px;
+        color: var(--color-text-muted);
+        pointer-events: none;
+    }
+
+    .auth-input-wrap input {
+        width: 100%;
+        padding: 12px 14px 12px 44px;
+        border-radius: var(--radius-sm);
+        border: 1.5px solid #e5e7eb;
+        font-size: 0.98rem;
+        background: var(--color-page-bg);
+        transition: border-color 0.18s, box-shadow 0.18s;
+        outline: none;
+    }
+
+    .auth-input-wrap input:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px var(--color-primary-soft);
+        background: var(--color-surface);
+    }
+
+    .auth-input-wrap input.is-invalid {
+        border-color: var(--color-danger);
+    }
+
+    .auth-toggle-password {
+        position: absolute;
+        right: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        color: var(--color-text-muted);
+        display: flex;
+    }
+
+    .auth-toggle-password svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .auth-error {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        background: var(--color-danger-bg);
+        color: var(--color-danger-text);
+        border-radius: var(--radius-sm);
+        padding: 12px 14px;
+        font-size: 0.92rem;
+        margin-bottom: 20px;
+    }
+
+    .auth-error svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .auth-submit-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 13px;
+        border: none;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+        color: #fff;
+        font-weight: 700;
+        font-size: 1rem;
+        cursor: pointer;
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .auth-submit-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .auth-submit-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    @media (max-width: 900px) {
+        .auth-brand-panel {
+            display: none;
+        }
+
+        .auth-form-panel {
+            flex: 1 1 100%;
+        }
     }
 </style>
-<div class="login-bg">
-    <div class="login-card p-4">
-        <div class="text-center mb-3">
-                        <span class="login-logo" style="display:inline-block;">
-                                <!-- Crystal Ball + Line Graph SVG -->
-                                <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="crystalGradient" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-                                            <stop stop-color="#a5b4fc"/>
-                                            <stop offset="1" stop-color="#6366f1"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <circle cx="28" cy="28" r="20" fill="url(#crystalGradient)" stroke="#6366f1" stroke-width="2"/>
-                                    <ellipse cx="28" cy="38" rx="12" ry="4" fill="#fff" fill-opacity=".25"/>
-                                    <polyline points="16,36 22,28 28,32 34,20 40,26" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <circle cx="22" cy="28" r="2" fill="#fff"/>
-                                    <circle cx="28" cy="32" r="2" fill="#fff"/>
-                                    <circle cx="34" cy="20" r="2" fill="#fff"/>
-                                    <circle cx="40" cy="26" r="2" fill="#fff"/>
-                                    <circle cx="16" cy="36" r="2" fill="#fff"/>
-                                    <ellipse cx="28" cy="22" rx="6" ry="2" fill="#fff" fill-opacity=".18"/>
-                                </svg>
-                        </span>
-            <div class="login-title mt-2 mb-0">SARIMA Analytics</div>
-            <div class="login-subtitle mb-2">Sales Forecasting &amp; Inventory Management</div>
+
+<div class="auth-shell">
+    <div class="auth-brand-panel">
+        <div class="auth-brand-logo">
+            <img src="{{ asset('images/logo-icon-128.png') }}" alt="Larios Pharmacy">
         </div>
-        <form method="POST" action="{{ route('login') }}" autocomplete="off">
-            @csrf
+        <h1 class="auth-brand-title">Larios Pharmacy</h1>
+        <p class="auth-brand-subtitle">Inventory, sales, and demand forecasting in one place — built to keep your shelves stocked and your reporting effortless.</p>
+        <div class="auth-brand-features">
+            <div class="auth-brand-feature">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Real-time stock &amp; reorder alerts
+            </div>
+            <div class="auth-brand-feature">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                SARIMA-powered sales forecasting
+            </div>
+            <div class="auth-brand-feature">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Role-based access for your whole team
+            </div>
+        </div>
+    </div>
+
+    <div class="auth-form-panel">
+        <div class="auth-form-card">
+            <div class="auth-form-heading">Welcome back</div>
+            <div class="auth-form-subheading">Sign in to your Larios Pharmacy account</div>
 
             @if ($errors->any())
-            <div class="alert alert-danger text-center mb-3">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                {{ $errors->first() }}
-            </div>
+                <div class="auth-error">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 9v4M12 17h.01M10.29 3.86l-8.18 14.18A1.5 1.5 0 0 0 3.5 20.5h17a1.5 1.5 0 0 0 1.39-2.46L13.71 3.86a1.5 1.5 0 0 0-2.42 0z"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>{{ $errors->first() }}</span>
+                </div>
             @endif
 
-            <div class="form-group mb-3">
-                <label for="email" class="mb-1">Email</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                    <input type="email" class="form-control @error('email') is-invalid @enderror"
-                        id="email" name="email" placeholder="admin@gmail.com"
-                        value="{{ old('email') }}" required autofocus>
+            <form method="POST" action="{{ route('login') }}" autocomplete="off">
+                @csrf
+
+                <div class="auth-field">
+                    <label for="email">Email</label>
+                    <div class="auth-input-wrap">
+                        <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="5" width="18" height="14" rx="2" />
+                            <path d="M3 7l9 6 9-6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <input type="email" class="@error('email') is-invalid @enderror"
+                            id="email" name="email" placeholder="admin@gmail.com"
+                            value="{{ old('email') }}" required autofocus>
+                    </div>
                 </div>
-            </div>
-            <div class="form-group mb-4">
-                <label for="password" class="mb-1">Password</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                    <input type="password" class="form-control @error('password') is-invalid @enderror"
-                        id="password" name="password" placeholder="••••••••" required>
+
+                <div class="auth-field">
+                    <label for="password">Password</label>
+                    <div class="auth-input-wrap">
+                        <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="4" y="10" width="16" height="10" rx="2" />
+                            <path d="M8 10V7a4 4 0 1 1 8 0v3" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <input type="password" class="@error('password') is-invalid @enderror"
+                            id="password" name="password" placeholder="••••••••" required style="padding-right: 44px;">
+                        <button type="button" class="auth-toggle-password" id="togglePassword" aria-label="Show password">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" stroke-linecap="round" stroke-linejoin="round" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <button type="submit" class="btn login-btn w-100 py-2 mb-2">
-                <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
-            </button>
-        </form>
+
+                <button type="submit" class="auth-submit-btn">
+                    Sign In
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </form>
+        </div>
     </div>
 </div>
+
+<script>
+    document.getElementById('togglePassword').addEventListener('click', function () {
+        var input = document.getElementById('password');
+        var isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        this.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
+</script>
 @endsection

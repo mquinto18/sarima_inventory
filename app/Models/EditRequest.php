@@ -22,8 +22,11 @@ class EditRequest extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * withTrashed: archiving a user must not erase who filed a request.
+     */
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }

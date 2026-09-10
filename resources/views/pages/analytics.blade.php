@@ -1,225 +1,314 @@
-@include('components.topheader')
-@include('components.sidebar')
+@extends('layouts.app')
 
-
+@section('content')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-.dashboard-gradient {
-    background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
-    min-height: 100vh;
-}
-.dashboard-title {
-    font-size: 2.3rem;
-    font-weight: 800;
-    margin-bottom: 0.2em;
-    letter-spacing: -1px;
-    color: #18181b;
-}
-.dashboard-subtitle {
-    color: #6366f1;
-    font-size: 1.1rem;
-    margin-bottom: 2.5rem;
-    font-weight: 500;
-}
-.dashboard-cards {
-    display: flex;
-    gap: 32px;
-    margin-bottom: 32px;
-    flex-wrap: wrap;
-}
-.dashboard-card {
-    flex: 1 1 220px;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: 0 4px 24px 0 rgba(99,102,241,0.08);
-    padding: 32px 28px 28px 28px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 220px;
-    transition: transform 0.18s cubic-bezier(.4,2,.6,1), box-shadow 0.18s cubic-bezier(.4,2,.6,1);
-    border: none;
-    position: relative;
-    cursor: pointer;
-}
-.dashboard-card:hover {
-    transform: translateY(-7px) scale(1.03);
-    box-shadow: 0 8px 32px 0 rgba(99,102,241,0.16);
-}
-.dashboard-card .icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.1rem;
-    margin-bottom: 10px;
-}
-.dashboard-card .main {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #18181b;
-    margin-bottom: 0.2em;
-}
-.dashboard-card .desc {
-    font-size: 1.08rem;
-    color: #6366f1;
-    font-weight: 600;
-    margin-bottom: 0.5em;
-}
-.dashboard-card .sub {
-    font-size: 1rem;
-    color: #888;
-    font-weight: 400;
-}
-.dashboard-card .trend-up {
-    color: #22c55e;
-    font-weight: 600;
-    font-size: 1.02rem;
-}
-.dashboard-card .trend-down {
-    color: #ef4444;
-    font-weight: 600;
-    font-size: 1.02rem;
-}
-.dashboard-card .status-excellent { color: #22c55e; font-weight: 600; }
-.dashboard-card .status-good { color: #3b82f6; font-weight: 600; }
-.dashboard-card .status-fair { color: #f59e0b; font-weight: 600; }
-.dashboard-card .status-pending { color: #888; font-weight: 600; }
-.dashboard-charts {
-    display: flex;
-    gap: 32px;
-    margin-bottom: 32px;
-    flex-wrap: wrap;
-}
-.dashboard-chart-card {
-    flex: 2 1 320px;
-    background: #fff;
-    border-radius: 16px;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    min-width: 320px;
-    box-shadow: 0 2px 12px 0 rgba(99,102,241,0.06);
-    margin-bottom: 0;
-}
-.dashboard-chart-title {
-    font-weight: 600;
-    font-size: 1.1rem;
-    margin-bottom: 16px;
-    color: #23272f;
-}
-.dashboard-chart-content {
-    background: #ededf2;
-    border-radius: 12px;
-    min-height: 180px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #888;
-    font-size: 1.1rem;
-}
+    .dashboard-charts {
+        display: flex;
+        gap: 32px;
+        margin-bottom: 32px;
+        flex-wrap: wrap;
+    }
+
+    .dashboard-chart-card {
+        flex: 2 1 320px;
+        background: var(--color-surface);
+        border-radius: var(--radius-md);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        min-width: 320px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 0;
+    }
+
+    .dashboard-chart-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 16px;
+        color: var(--color-text);
+    }
+
+    .dashboard-chart-content {
+        position: relative;
+        height: 260px;
+    }
+
+    .insight-pill {
+        border-radius: var(--radius-sm);
+        padding: 10px 16px;
+        font-size: 0.98rem;
+    }
+
+    .insight-pill--info { background: var(--color-primary-soft); color: #3730a3; }
+    .insight-pill--success { background: var(--color-success-bg); color: #15803d; }
 </style>
-<div class="dashboard-gradient" style="margin-left: 220px; padding: 40px; padding-top: 90px;">
-    <div class="dashboard-title">Analytics</div>
-    <div class="dashboard-subtitle">Performance insights and AI recommendations</div>
-    <div class="dashboard-cards">
-        <div class="dashboard-card" tabindex="0">
-            <div class="icon" style="background: #e0fce6; color: #22c55e;">&#36;</div>
-            <div class="desc">[Revenue]</div>
-            <div class="main">Total Sales YTD</div>
-            <div class="trend-up">[% Change]</div>
+<div class="page-shell">
+    <div class="dashboard-hero">
+        <div>
+            <div class="dashboard-hero-greeting">Analytics</div>
+            <div class="dashboard-hero-sub">Performance insights based on your actual sales and inventory data.</div>
         </div>
-        <div class="dashboard-card" tabindex="0">
-            <div class="icon" style="background: #e0e7ff; color: #3b82f6;">&#128161;</div>
-            <div class="desc">[Accuracy]</div>
-            <div class="main">Forecast Accuracy</div>
-            <div class="sub">SARIMA Performance</div>
+        <div class="dashboard-hero-actions">
+            <a href="javascript:void(0)" data-open-report class="btn-action edit">Generate Report</a>
         </div>
-        <div class="dashboard-card" tabindex="0">
-            <div class="icon" style="background: #f3e8ff; color: #a21caf;">&#128200;</div>
-            <div class="desc">[Rate]</div>
-            <div class="main">Inventory Turnover</div>
-            <div class="sub">[Change]</div>
+    </div>
+    <div class="stat-grid">
+        <div class="stat-card" tabindex="0">
+            <div class="stat-icon stat-icon--success">
+                <span class="currency-icon">₱</span>
+            </div>
+            <div class="desc" style="font-size:1.08rem; color: var(--color-primary); font-weight:600; margin-bottom:0.5em;">Total Sales YTD</div>
+            <div class="main">₱{{ number_format($salesYtd, 2) }}</div>
+            @if($salesYoyChange !== null)
+                <div class="{{ $salesYoyChange >= 0 ? 'trend-up' : 'trend-down' }}" style="font-weight:600;">
+                    {{ $salesYoyChange >= 0 ? '↑' : '↓' }} {{ number_format(abs($salesYoyChange), 1) }}% vs last year
+                </div>
+            @else
+                <div class="sub">No prior-year data yet</div>
+            @endif
+        </div>
+        <div class="stat-card" tabindex="0">
+            <div class="stat-icon stat-icon--primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 17 9 11 13 15 21 7" stroke-linecap="round" stroke-linejoin="round" />
+                    <circle cx="21" cy="7" r="1.5" fill="currentColor" stroke="none" />
+                </svg>
+            </div>
+            <div class="desc" style="font-size:1.08rem; color: var(--color-primary); font-weight:600; margin-bottom:0.5em;">Forecast Accuracy</div>
+            <div class="main">
+                @if($forecastAccuracy['accuracy_percentage'] > 0)
+                    {{ number_format($forecastAccuracy['accuracy_percentage'], 1) }}%
+                @else
+                    --
+                @endif
+            </div>
+            <div class="sub">{{ $forecastAccuracy['status'] }}</div>
+        </div>
+        <div class="stat-card" tabindex="0">
+            <div class="stat-icon" style="background: #f3e8ff; color: #a21caf;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </div>
+            <div class="desc" style="font-size:1.08rem; color: var(--color-primary); font-weight:600; margin-bottom:0.5em;">Inventory Turnover</div>
+            <div class="main">{{ $inventoryTurnover }}</div>
+            <div class="sub">units sold this month per unit on hand</div>
         </div>
     </div>
     <div class="dashboard-charts">
         <div class="dashboard-chart-card">
-            <div class="dashboard-chart-title">Performance Trends</div>
-            <div class="dashboard-chart-content">[Chart Placeholder]</div>
+            <div class="dashboard-chart-title">Revenue Trend (Last 6 Months)</div>
+            <div class="dashboard-chart-content">
+                <canvas id="revenueTrendChart"></canvas>
+            </div>
         </div>
         <div class="dashboard-chart-card">
-            <div class="dashboard-chart-title">Category Analysis</div>
-            <div class="dashboard-chart-content">[Chart Placeholder]</div>
+            <div class="dashboard-chart-title">Revenue by Category (This Year)</div>
+            <div class="dashboard-chart-content">
+                <canvas id="categoryChart"></canvas>
+            </div>
         </div>
     </div>
-</div>
 
     <!-- Key Metrics Table -->
-    <div style="background: #fff; border-radius: 16px; padding: 24px 24px 32px 24px; margin-bottom: 32px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
-
-        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #23272f;">Key Metrics</div>
-
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse;">
+    <div class="card-panel" style="margin-bottom: 32px;">
+        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: var(--color-text);">Key Metrics</div>
+        <div class="data-table-container" style="box-shadow: none; margin-bottom: 0;">
+            <table class="data-table">
                 <thead>
-                    <tr style="background: #fafbfc;">
-                        <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Metric</th>
-                        <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Current</th>
-                        <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Previous</th>
-                        <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Change</th>
-                        <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Target</th>
-                        <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #23272f;">Status</th>
+                    <tr>
+                        <th>Metric</th>
+                        <th>This Month</th>
+                        <th>Last Month</th>
+                        <th>Change</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="padding: 10px 8px;">Total Revenue</td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
+                        <td>Total Revenue</td>
+                        <td>₱{{ number_format($revenueThisMonth, 2) }}</td>
+                        <td>₱{{ number_format($revenueLastMonth, 2) }}</td>
+                        <td>
+                            @if($revenueChange !== null)
+                                <span class="{{ $revenueChange >= 0 ? 'trend-up' : 'trend-down' }}">{{ $revenueChange >= 0 ? '+' : '' }}{{ $revenueChange }}%</span>
+                            @else
+                                <span class="sub">N/A</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($revenueChange === null)
+                                <span class="status-badge status-badge--info">New</span>
+                            @elseif($revenueChange >= 0)
+                                <span class="status-badge status-badge--success">Growing</span>
+                            @else
+                                <span class="status-badge status-badge--warning">Declining</span>
+                            @endif
+                        </td>
                     </tr>
                     <tr>
-                        <td style="padding: 10px 8px;">Forecast Accuracy</td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
+                        <td>Forecast Accuracy</td>
+                        <td colspan="2">{{ $forecastAccuracy['accuracy_percentage'] > 0 ? number_format($forecastAccuracy['accuracy_percentage'], 1) . '%' : 'Pending data' }}</td>
+                        <td class="sub">—</td>
+                        <td>
+                            @if($forecastAccuracy['accuracy_percentage'] >= 85)
+                                <span class="status-badge status-badge--success">{{ $forecastAccuracy['status'] }}</span>
+                            @elseif($forecastAccuracy['accuracy_percentage'] > 0)
+                                <span class="status-badge status-badge--warning">{{ $forecastAccuracy['status'] }}</span>
+                            @else
+                                <span class="status-badge status-badge--info">{{ $forecastAccuracy['status'] }}</span>
+                            @endif
+                        </td>
                     </tr>
                     <tr>
-                        <td style="padding: 10px 8px;">Inventory Turnover</td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
-                        <td style="padding: 10px 8px;"></td>
+                        <td>Inventory Turnover</td>
+                        <td>{{ $inventoryTurnover }}</td>
+                        <td>{{ $inventoryTurnoverLastMonth }}</td>
+                        <td>
+                            @php $turnoverDelta = $inventoryTurnover - $inventoryTurnoverLastMonth; @endphp
+                            <span class="{{ $turnoverDelta >= 0 ? 'trend-up' : 'trend-down' }}">{{ $turnoverDelta >= 0 ? '+' : '' }}{{ round($turnoverDelta, 2) }}</span>
+                        </td>
+                        <td><span class="status-badge status-badge--info">Tracked</span></td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <div style="display: flex; gap: 32px;">
-        <!-- AI Insights -->
-        <div style="flex: 1; background: #fff; border-radius: 16px; padding: 24px 24px 32px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
-            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #23272f;">AI Insights</div>
+    <div style="display: flex; gap: 32px; flex-wrap: wrap;">
+        <!-- Insights -->
+        <div class="card-panel" style="flex: 1; min-width: 280px;">
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: var(--color-text);">Insights</div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="background: #e0e7ff; color: #3730a3; border-radius: 8px; padding: 10px 16px; font-size: 1rem;">[AI Insight 1]</div>
-                <div style="background: #e0e7ff; color: #3730a3; border-radius: 8px; padding: 10px 16px; font-size: 1rem;">[AI Insight 2]</div>
-                <div style="background: #e0e7ff; color: #3730a3; border-radius: 8px; padding: 10px 16px; font-size: 1rem;">[AI Insight 3]</div>
+                @foreach($insights as $insight)
+                    <div class="insight-pill insight-pill--info">{{ $insight }}</div>
+                @endforeach
             </div>
         </div>
         <!-- Recommendations -->
-        <div style="flex: 1; background: #fff; border-radius: 16px; padding: 24px 24px 32px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
-            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #23272f;">Recommendations</div>
+        <div class="card-panel" style="flex: 1; min-width: 280px;">
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: var(--color-text);">Recommendations</div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="background: #dcfce7; color: #15803d; border-radius: 8px; padding: 10px 16px; font-size: 1rem;">[Recommendation 1]</div>
-                <div style="background: #dcfce7; color: #15803d; border-radius: 8px; padding: 10px 16px; font-size: 1rem;">[Recommendation 2]</div>
-                <div style="background: #dcfce7; color: #15803d; border-radius: 8px; padding: 10px 16px; font-size: 1rem;">[Recommendation 3]</div>
+                @foreach($recommendations as $recommendation)
+                    <div class="insight-pill insight-pill--success">{{ $recommendation }}</div>
+                @endforeach
             </div>
         </div>
     </div>
+
+    <div style="display: flex; gap: 32px; flex-wrap: wrap; margin-top: 32px;">
+        <!-- Fast-Moving Products -->
+        <div class="card-panel" style="flex: 1; min-width: 320px;">
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: var(--color-text);">Fast-Moving Products</div>
+            @if($fastMovingProducts->isEmpty())
+                <div style="color: var(--color-text-muted);">No products currently meet the fast-moving threshold.</div>
+            @else
+                <div class="data-table-container" style="box-shadow: none; margin-bottom: 0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Units Sold</th>
+                                <th>Units / Week</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($fastMovingProducts as $product)
+                                <tr>
+                                    <td>{{ $product->name }}</td>
+                                    <td>{{ $product->units_sold }}</td>
+                                    <td><span class="status-badge status-badge--success">{{ $product->units_per_week }}</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+        <!-- Slow-Moving Products -->
+        <div class="card-panel" style="flex: 1; min-width: 320px;">
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: var(--color-text);">Slow-Moving Products</div>
+            @if($slowMovingProducts->isEmpty())
+                <div style="color: var(--color-text-muted);">No slow-moving products detected.</div>
+            @else
+                <div class="data-table-container" style="box-shadow: none; margin-bottom: 0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Units Sold</th>
+                                <th>Units / Week</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($slowMovingProducts as $product)
+                                <tr>
+                                    <td>{{ $product->name }}</td>
+                                    <td>{{ $product->units_sold }}</td>
+                                    <td><span class="status-badge status-badge--warning">{{ $product->units_per_week }}</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+    </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const trendCtx = document.getElementById('revenueTrendChart');
+        if (trendCtx) {
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: @json($trendMonths),
+                    datasets: [{
+                        label: 'Revenue',
+                        data: @json($trendRevenue),
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#6366f1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => '₱' + new Intl.NumberFormat('en-PH', { notation: 'compact' }).format(v) } }
+                    }
+                }
+            });
+        }
+
+        const categoryCtx = document.getElementById('categoryChart');
+        if (categoryCtx) {
+            new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: @json($categoryRevenue->pluck('category')),
+                    datasets: [{
+                        data: @json($categoryRevenue->pluck('total')),
+                        backgroundColor: ['#6366f1', '#16a34a', '#f59e0b', '#a21caf', '#2563eb'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+    });
+</script>
+@include('components.report-drawer')
+
+@endsection

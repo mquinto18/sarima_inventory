@@ -14,14 +14,21 @@ class Sale extends Model
         'quantity_sold',
         'unit_price',
         'total_amount',
+        'amount_tendered',
+        'change_due',
         'sale_date',
-        'month_year'
+        'month_year',
+        'notes',
+        'pos_transaction_id',
+        'user_id',
     ];
 
     protected $casts = [
         'sale_date' => 'date',
         'unit_price' => 'decimal:2',
-        'total_amount' => 'decimal:2'
+        'total_amount' => 'decimal:2',
+        'amount_tendered' => 'decimal:2',
+        'change_due' => 'decimal:2'
     ];
 
     public function product()
@@ -46,5 +53,14 @@ class Sale extends Model
         }
 
         return $query->limit($months)->get();
+    }
+
+    /**
+     * withTrashed: an archived cashier must still be named on their past sales.
+     * Null for legacy rows recorded before the POS captured a cashier.
+     */
+    public function cashier()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id')->withTrashed();
     }
 }
