@@ -12,7 +12,8 @@ nixPkgs = [
   "php82Extensions.curl",
   "php82Extensions.zip",
   "php82Extensions.bcmath",
-  "nodejs_20"
+  "nodejs_20",
+  "nginx"
 ]
 
 [phases.build]
