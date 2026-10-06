@@ -19,17 +19,17 @@ class PurchaseOrderConfirmationController extends Controller
             ->first();
 
         if (!$purchaseOrder) {
-            return view('public.purchase-order-confirm', ['state' => 'invalid']);
+            return view('supplier.purchase-order-confirm', ['state' => 'invalid']);
         }
 
         if ($purchaseOrder->status !== 'sent') {
-            return view('public.purchase-order-confirm', [
+            return view('supplier.purchase-order-confirm', [
                 'state' => 'already_processed',
                 'purchaseOrder' => $purchaseOrder,
             ]);
         }
 
-        return view('public.purchase-order-confirm', [
+        return view('supplier.purchase-order-confirm', [
             'state' => 'pending',
             'purchaseOrder' => $purchaseOrder,
             'action' => request('action'),
@@ -41,7 +41,7 @@ class PurchaseOrderConfirmationController extends Controller
         $purchaseOrder = PurchaseOrder::where('confirmation_token', $token)->first();
 
         if (!$purchaseOrder) {
-            return view('public.purchase-order-confirm', ['state' => 'invalid']);
+            return view('supplier.purchase-order-confirm', ['state' => 'invalid']);
         }
 
         // Re-checked here, not just on the page that linked here: guards
@@ -52,7 +52,7 @@ class PurchaseOrderConfirmationController extends Controller
             Log::info("PurchaseOrderConfirmation: PO {$purchaseOrder->po_number} approved by supplier via email link.");
         }
 
-        return view('public.purchase-order-confirm', [
+        return view('supplier.purchase-order-confirm', [
             'state' => 'approved',
             'purchaseOrder' => $purchaseOrder->fresh(),
         ]);
@@ -63,7 +63,7 @@ class PurchaseOrderConfirmationController extends Controller
         $purchaseOrder = PurchaseOrder::where('confirmation_token', $token)->first();
 
         if (!$purchaseOrder) {
-            return view('public.purchase-order-confirm', ['state' => 'invalid']);
+            return view('supplier.purchase-order-confirm', ['state' => 'invalid']);
         }
 
         if ($purchaseOrder->status === 'sent') {
@@ -74,7 +74,7 @@ class PurchaseOrderConfirmationController extends Controller
             Log::info("PurchaseOrderConfirmation: PO {$purchaseOrder->po_number} declined by supplier via email link.");
         }
 
-        return view('public.purchase-order-confirm', [
+        return view('supplier.purchase-order-confirm', [
             'state' => 'declined',
             'purchaseOrder' => $purchaseOrder->fresh(),
         ]);
