@@ -692,6 +692,12 @@
 			var btn = this;
 			setButtonLoading(btn, true, 'Processing...');
 
+			// Opened synchronously on the click itself (a real user gesture),
+			// then pointed at the receipt once checkout responds. Opening a
+			// tab from inside the ajax success callback instead gets treated
+			// as a popup by most browsers and silently blocked.
+			var receiptWindow = window.open('', '_blank');
+
 			$.ajax({
 				url: '/pos/checkout',
 				method: 'POST',
@@ -724,14 +730,20 @@
 					$('#posSearchInput').val('');
 					showInitialProducts();
 
-					if (response.receipt_url) {
-						window.open(response.receipt_url, '_blank');
+					if (response.receipt_url && receiptWindow) {
+						receiptWindow.location = response.receipt_url;
+					} else if (receiptWindow) {
+						receiptWindow.close();
 					}
 				},
 				error: function (xhr) {
 					setButtonLoading(btn, false);
 					var message = (xhr.responseJSON && xhr.responseJSON.message) || 'Checkout failed';
 					showToast(message, 'error');
+
+					if (receiptWindow) {
+						receiptWindow.close();
+					}
 				}
 			});
 		});
