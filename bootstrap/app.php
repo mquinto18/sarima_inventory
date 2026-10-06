@@ -18,6 +18,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/postmark/inbound',
         ]);
+
+        // Railway (and most PaaS hosts) terminate TLS at their edge proxy and
+        // forward requests to the app as plain HTTP, so without this Laravel
+        // never sees the request as secure and generates http:// asset/URL
+        // links - which browsers then block as mixed content on an https://
+        // page. The proxy is Railway's own edge, not an arbitrary client, so
+        // trusting it here is safe.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
