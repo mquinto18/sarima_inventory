@@ -135,6 +135,19 @@
 		</div>
 	</div>
 
+	@php
+		// Categories already in use, plus the original built-in set so a fresh
+		// database still offers sensible choices. Anything added through
+		// "+ Add new category" shows up here on the next load.
+		$categoryOptions = $products->pluck('category')
+			->merge(['Medicine', 'Vitamins & Supplements', 'Medical Supplies', 'Personal Care'])
+			->map(fn ($c) => trim((string) $c))
+			->filter()
+			->unique()
+			->sort(SORT_NATURAL | SORT_FLAG_CASE)
+			->values();
+	@endphp
+
 	<!-- Add Product Modal -->
 	<div id="addProductModal"
 		class="modal-overlay" style="display: none;">
@@ -174,14 +187,32 @@
 								<path d="M20.59 13.41L11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82z" stroke-linecap="round" stroke-linejoin="round" />
 								<circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
 							</svg>
-							<select id="productCategory" name="category" required>
+							{{-- No name attribute: the value that actually gets submitted
+								 lives in the hidden field below, so the dropdown and the
+								 "new category" box can never both post a `category`. --}}
+							<select id="productCategory" required>
 								<option value="">Select Category</option>
-								<option value="Medicine">Medicine</option>
-								<option value="Vitamins & Supplements">Vitamins &amp; Supplements</option>
-								<option value="Medical Supplies">Medical Supplies</option>
-								<option value="Personal Care">Personal Care</option>
+								@foreach($categoryOptions as $categoryOption)
+									<option value="{{ $categoryOption }}">{{ $categoryOption }}</option>
+								@endforeach
+								<option value="__new__">+ Add new category…</option>
 							</select>
 						</div>
+
+						<div id="newCategoryWrap" style="display: none; margin-top: 10px;">
+							<div class="form-input-group">
+								<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M12 5v14M5 12h14" stroke-linecap="round" />
+								</svg>
+								<input type="text" id="productCategoryNew" maxlength="255"
+									placeholder="New category name" autocomplete="off">
+							</div>
+							<small style="color: var(--color-text-muted); font-size: 0.85rem;">
+								It will appear in this list for future products.
+							</small>
+						</div>
+
+						<input type="hidden" name="category" id="productCategoryValue">
 					</div>
 					<div style="margin-bottom: 18px;">
 						<label for="productStock"
@@ -218,6 +249,17 @@
 							</svg>
 							<input type="number" id="productReorder" name="reorder_level" min="0" value="10" required>
 						</div>
+					</div>
+					<div style="margin-bottom: 18px;">
+						<label for="productExpiry"
+							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Expiration Date</label>
+						<div class="form-input-group">
+							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+							<input type="date" id="productExpiry" name="expiry_date">
+						</div>
+						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Leave blank if this product doesn't expire or the batch isn't tracked.</small>
 					</div>
 				</div>
 				<div
@@ -296,6 +338,17 @@
 							<input type="number" id="editProductReorder" name="reorder_level" min="0" required>
 						</div>
 					</div>
+						<div style="margin-bottom: 18px;">
+							<label for="editProductExpiry"
+								style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Expiration Date</label>
+							<div class="form-input-group">
+								<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+								<input type="date" id="editProductExpiry" name="expiry_date">
+							</div>
+							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Leave blank if this product doesn't expire or the batch isn't tracked.</small>
+						</div>
 				</div>
 				<div
 					style="padding: 24px 28px; border-top: 1px solid #e0e0e0; display: flex; gap: 14px; justify-content: flex-end;">
@@ -342,13 +395,71 @@
 			});
 
 			// Hide modal
+			// --- Category picker with an inline "add new" option ---
+			var categorySelect = document.getElementById('productCategory');
+			var newCategoryWrap = document.getElementById('newCategoryWrap');
+			var newCategoryInput = document.getElementById('productCategoryNew');
+			var categoryValue = document.getElementById('productCategoryValue');
+
+			/**
+			 * Mirrors whichever control is active into the single hidden field
+			 * that actually gets submitted.
+			 */
+			function syncCategory() {
+				var addingNew = categorySelect.value === '__new__';
+
+				newCategoryWrap.style.display = addingNew ? 'block' : 'none';
+				newCategoryInput.required = addingNew;
+
+				categoryValue.value = addingNew ? newCategoryInput.value.trim() : categorySelect.value;
+			}
+
+			/**
+			 * Reuse an existing category's spelling when the typed name matches
+			 * one case-insensitively, so "medicine" doesn't become a second
+			 * category alongside "Medicine".
+			 */
+			function normaliseNewCategory() {
+				var typed = newCategoryInput.value.trim();
+				if (!typed) return;
+
+				var match = Array.prototype.find.call(categorySelect.options, function (opt) {
+					return opt.value && opt.value !== '__new__'
+						&& opt.value.toLowerCase() === typed.toLowerCase();
+				});
+
+				if (match) {
+					categorySelect.value = match.value;
+					newCategoryInput.value = '';
+				}
+				syncCategory();
+			}
+
+			function resetCategoryField() {
+				categorySelect.value = '';
+				newCategoryInput.value = '';
+				syncCategory();
+			}
+
+			categorySelect.addEventListener('change', function () {
+				syncCategory();
+				if (categorySelect.value === '__new__') {
+					newCategoryInput.focus();
+				}
+			});
+			newCategoryInput.addEventListener('input', syncCategory);
+			newCategoryInput.addEventListener('blur', normaliseNewCategory);
+			syncCategory();
+
 			$('#closeModal, #cancelBtn').on('click', function () {
+				resetCategoryField();
 				$('#addProductModal').hide();
 			});
 
 			// Click outside modal to close
 			$('#addProductModal').on('click', function (e) {
 				if (e.target.id === 'addProductModal') {
+					resetCategoryField();
 					$('#addProductModal').hide();
 				}
 			});
@@ -357,6 +468,16 @@
 			$('#addProductForm').on('submit', function (e) {
 				e.preventDefault();
 				var form = $(this);
+
+				// Guard against a whitespace-only new category slipping through:
+				// `required` on the text box is satisfied by " ".
+				normaliseNewCategory();
+				if (!categoryValue.value) {
+					showToast('Please choose a category or enter a new one.', 'error');
+					(categorySelect.value === '__new__' ? newCategoryInput : categorySelect).focus();
+					return;
+				}
+
 				var submitBtn = form.find('button[type="submit"]').get(0);
 				setButtonLoading(submitBtn, true, 'Adding...');
 				$.ajax({
@@ -367,6 +488,7 @@
 						setButtonLoading(submitBtn, false);
 						$('#addProductModal').hide();
 						form[0].reset();
+						resetCategoryField();
 						showToast('Product added successfully!', 'success');
 						// Reload page to show new product
 						setTimeout(function () {
@@ -389,6 +511,7 @@
 				var productStatus = $(this).data('status');
 				var productPrice = $(this).data('price');
 				var productReorder = $(this).data('reorder');
+				var productExpiry = $(this).data('expiry');
 
 				// Populate form fields
 				$('#editProductId').val(productId);
@@ -397,6 +520,7 @@
 				$('#editProductStock').val(productStock);
 				$('#editProductPrice').val(productPrice);
 				$('#editProductReorder').val(productReorder);
+				$('#editProductExpiry').val(productExpiry || '');
 
 				// Set form action
 				$('#editProductForm').attr('action', '/products/' + productId);
@@ -538,6 +662,32 @@
 				filterActiveDot.style.display = (statusFilter || categoryFilter) ? 'block' : 'none';
 			}
 		}
+
+		// Shortcuts from the notification bell land here with query params:
+		//   ?search=<product>  pre-filters the table down to that product
+		//   ?reorder=1         opens the reorder recommendations panel
+		document.addEventListener('DOMContentLoaded', function () {
+			const params = new URLSearchParams(window.location.search);
+
+			const search = params.get('search');
+			if (search) {
+				const input = document.getElementById('searchInput');
+				if (input) {
+					input.value = search;
+					applyFilters();
+					// Make it obvious the list is filtered, and easy to undo.
+					input.focus({ preventScroll: true });
+				}
+			}
+
+			if (params.get('reorder')) {
+				const reorderModal = document.getElementById('reorderRecommendationsModal');
+				// Absent for staff, who do not get the recommendations panel.
+				if (reorderModal) {
+					reorderModal.style.display = 'flex';
+				}
+			}
+		});
 
 		document.addEventListener('DOMContentLoaded', function () {
 			const filterToggleBtn = document.getElementById('filterToggleBtn');
@@ -732,21 +882,24 @@
 											data-name="{{ $product->name }}" data-category="{{ $product->category }}"
 											data-stock="{{ $product->stock }}" data-status="{{ $product->status }}"
 											data-price="{{ $product->price }}"
-											data-reorder="{{ $product->reorder_level }}">Edit</button>
+											data-reorder="{{ $product->reorder_level }}"
+										data-expiry="{{ $product->expiry_date?->format('Y-m-d') }}">Edit</button>
 									@else
 										<button class="btn-action edit edit-btn" disabled
 											style="background: #bdbdbd; cursor: not-allowed; opacity: 0.7;"
 											data-id="{{ $product->id }}" data-name="{{ $product->name }}"
 											data-category="{{ $product->category }}" data-stock="{{ $product->stock }}"
 											data-status="{{ $product->status }}" data-price="{{ $product->price }}"
-											data-reorder="{{ $product->reorder_level }}">Edit</button>
+											data-reorder="{{ $product->reorder_level }}"
+										data-expiry="{{ $product->expiry_date?->format('Y-m-d') }}">Edit</button>
 									@endif
 								@else
 									<button class="btn-action edit edit-btn" data-id="{{ $product->id }}"
 										data-name="{{ $product->name }}" data-category="{{ $product->category }}"
 										data-stock="{{ $product->stock }}" data-status="{{ $product->status }}"
 										data-price="{{ $product->price }}"
-										data-reorder="{{ $product->reorder_level }}">Edit</button>
+										data-reorder="{{ $product->reorder_level }}"
+										data-expiry="{{ $product->expiry_date?->format('Y-m-d') }}">Edit</button>
 								@endif
 								@if(Auth::user()->role !== 'staff')
 									<button class="btn-action delete delete-btn" data-id="{{ $product->id }}"

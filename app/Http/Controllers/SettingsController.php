@@ -36,6 +36,7 @@ class SettingsController extends Controller
             'stp_max_order_value' => (float) Setting::get('stp_max_order_value'),
             'stp_max_qty_per_product' => (int) Setting::get('stp_max_qty_per_product'),
             'default_lead_time_days' => (int) Setting::get('default_lead_time_days'),
+            'default_markup_percent' => (float) Setting::get('default_markup_percent'),
         ];
 
         // Archived accounts are only listed for admins — managers can reach this
@@ -67,6 +68,7 @@ class SettingsController extends Controller
             'stp_max_order_value' => 'required|numeric|min:0',
             'stp_max_qty_per_product' => 'required|integer|min:1',
             'default_lead_time_days' => 'required|integer|min:1',
+            'default_markup_percent' => 'required|numeric|min:0',
         ]);
 
         Setting::set('critical_stock_level', $validated['critical_stock_level']);
@@ -80,6 +82,7 @@ class SettingsController extends Controller
         Setting::set('stp_max_order_value', $validated['stp_max_order_value']);
         Setting::set('stp_max_qty_per_product', $validated['stp_max_qty_per_product']);
         Setting::set('default_lead_time_days', $validated['default_lead_time_days']);
+        Setting::set('default_markup_percent', $validated['default_markup_percent']);
 
         return redirect()->route('settings')->with('success', 'Settings updated successfully.');
     }

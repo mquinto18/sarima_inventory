@@ -25,6 +25,7 @@ class Setting extends Model
             'slow_moving_threshold' => 2,
             'velocity_window_days' => 30,
             'default_lead_time_days' => 7,
+            'default_markup_percent' => 10,
         ];
     }
 

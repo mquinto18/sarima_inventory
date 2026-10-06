@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductSupplier;
+use App\Models\Setting;
 use App\Models\Supplier;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SupplierController extends Controller
 {
@@ -34,7 +37,10 @@ class SupplierController extends Controller
             $query->orderBy('name');
         }])->orderBy('name')->get();
 
-        $products = Product::orderBy('name')->get();
+        // Eager-loaded so the "Link Product to Supplier" modal can hide,
+        // per product, whichever suppliers already have it linked - without
+        // an N+1 query per row.
+        $products = Product::with('suppliers')->orderBy('name')->get();
 
         $reorderCount = ProductController::getReorderCount();
         $reorderNotifications = ProductController::getReorderNotifications();
@@ -118,8 +124,9 @@ class SupplierController extends Controller
     {
         $this->denyStaff();
 
+        $supplier = Supplier::findOrFail($id);
+
         try {
-            $supplier = Supplier::findOrFail($id);
             $supplier->delete();
 
             if (request()->wantsJson() || request()->ajax()) {
@@ -130,15 +137,25 @@ class SupplierController extends Controller
             }
 
             return redirect()->back()->with('success', 'Supplier deleted successfully!');
-        } catch (\Exception $e) {
+        } catch (QueryException $e) {
+            Log::error("Failed to delete supplier #{$id}: " . $e->getMessage());
+
+            // SQLSTATE 23000: integrity constraint violation - this supplier
+            // still has purchase order history referencing it, which must be
+            // kept for the record. Deactivating (instead of deleting) is
+            // already supported via the Edit form's "Active" checkbox.
+            $message = $e->getCode() === '23000'
+                ? "Cannot delete \"{$supplier->name}\" because it has purchase order history on record. Deactivate it instead (Edit → uncheck Active) to stop new orders while keeping its history."
+                : 'Error deleting supplier. Please try again.';
+
             if (request()->wantsJson() || request()->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Error deleting supplier: ' . $e->getMessage(),
-                ], 500);
+                    'message' => $message,
+                ], 422);
             }
 
-            return redirect()->back()->with('error', 'Error deleting supplier');
+            return redirect()->back()->with('error', $message);
         }
     }
 
@@ -161,24 +178,13 @@ class SupplierController extends Controller
             'is_primary' => 'nullable|boolean',
         ]);
 
-        $isPrimary = $request->boolean('is_primary');
-
-        $link = DB::transaction(function () use ($validated, $isPrimary) {
-            if ($isPrimary) {
-                ProductSupplier::where('product_id', $validated['product_id'])
-                    ->update(['is_primary' => false]);
-            }
-
-            return ProductSupplier::updateOrCreate(
-                [
-                    'product_id' => $validated['product_id'],
-                    'supplier_id' => $validated['supplier_id'],
-                ],
-                [
-                    'cost_price' => $validated['cost_price'],
-                    'lead_time_days' => $validated['lead_time_days'] ?? null,
-                    'is_primary' => $isPrimary,
-                ]
+        $link = DB::transaction(function () use ($validated, $request) {
+            return $this->upsertProductSupplierLink(
+                (int) $validated['product_id'],
+                (int) $validated['supplier_id'],
+                (float) $validated['cost_price'],
+                isset($validated['lead_time_days']) ? (int) $validated['lead_time_days'] : null,
+                $request->boolean('is_primary')
             );
         });
 
@@ -191,6 +197,101 @@ class SupplierController extends Controller
         }
 
         return redirect()->back()->with('success', 'Product linked to supplier successfully!');
+    }
+
+    /**
+     * Link several products to one supplier in a single request, instead of
+     * repeating the single-product form one product at a time. Cost price is
+     * still required per product (it varies by product and feeds the
+     * auto-reorder value caps), but supplier / lead time / primary flag are
+     * shared across the whole batch.
+     */
+    public function linkProducts(Request $request)
+    {
+        $this->denyStaff();
+
+        $validated = $request->validate([
+            'supplier_id' => 'required|exists:suppliers,id',
+            'lead_time_days' => 'nullable|integer|min:0',
+            'is_primary' => 'nullable|boolean',
+            'products' => 'required|array|min:1',
+            'products.*.cost_price' => 'required|numeric|min:0',
+        ]);
+
+        $productIds = array_keys($validated['products']);
+
+        if (Product::whereIn('id', $productIds)->count() !== count($productIds)) {
+            $message = 'One or more selected products could not be found.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        $isPrimary = $request->boolean('is_primary');
+        $leadTimeDays = isset($validated['lead_time_days']) ? (int) $validated['lead_time_days'] : null;
+
+        $links = DB::transaction(function () use ($validated, $isPrimary, $leadTimeDays) {
+            $links = [];
+
+            foreach ($validated['products'] as $productId => $product) {
+                $links[] = $this->upsertProductSupplierLink(
+                    (int) $productId,
+                    (int) $validated['supplier_id'],
+                    (float) $product['cost_price'],
+                    $leadTimeDays,
+                    $isPrimary
+                );
+            }
+
+            return $links;
+        });
+
+        $message = count($links) . ' product' . (count($links) === 1 ? '' : 's') . ' linked to supplier successfully';
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'links' => $links,
+            ]);
+        }
+
+        return redirect()->back()->with('success', $message . '!');
+    }
+
+    /**
+     * Shared by linkProduct()/linkProducts(): creates or updates one
+     * product_supplier row. At most one row per product may have
+     * is_primary=true, so an incoming primary link first demotes every other
+     * link for that product. When the link is primary, the product's selling
+     * price is also recalculated from this cost (see class docblock note on
+     * Setting::get('default_markup_percent')) - a product can have several
+     * suppliers at different costs, but only one retail price, so only the
+     * primary supplier's cost should ever drive it. Must be called from
+     * within a transaction (bulk callers loop this multiple times).
+     */
+    private function upsertProductSupplierLink(int $productId, int $supplierId, float $costPrice, ?int $leadTimeDays, bool $isPrimary): ProductSupplier
+    {
+        if ($isPrimary) {
+            ProductSupplier::where('product_id', $productId)->update(['is_primary' => false]);
+        }
+
+        $link = ProductSupplier::updateOrCreate(
+            ['product_id' => $productId, 'supplier_id' => $supplierId],
+            ['cost_price' => $costPrice, 'lead_time_days' => $leadTimeDays, 'is_primary' => $isPrimary]
+        );
+
+        if ($isPrimary) {
+            $markup = (float) Setting::get('default_markup_percent', 10);
+            Product::where('id', $productId)->update([
+                'price' => round($costPrice * (1 + $markup / 100), 2),
+            ]);
+        }
+
+        return $link;
     }
 
     /**

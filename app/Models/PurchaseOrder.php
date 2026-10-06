@@ -17,7 +17,10 @@ class PurchaseOrder extends Model
         'delivered_at',
         'created_by',
         'pdf_path',
+        'confirmation_token',
+        'confirmed_at',
         'notes',
+        'confirmation_note',
     ];
 
     protected $casts = [
@@ -25,6 +28,7 @@ class PurchaseOrder extends Model
         'total_value' => 'decimal:2',
         'expected_delivery_date' => 'date',
         'sent_at' => 'datetime',
+        'confirmed_at' => 'datetime',
         'delivered_at' => 'datetime',
     ];
 

@@ -157,6 +157,59 @@
             background-color: #f9f9f9;
         }
 
+        /* Notification rows double as shortcuts to the thing they describe. */
+        .notification-row--link {
+            display: block;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f5f5f5;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .notification-row--link:hover,
+        .notification-row--link:focus-visible {
+            text-decoration: none;
+            color: inherit;
+            outline: none;
+            background-color: var(--color-primary-soft, #e0e7ff);
+        }
+
+        .notification-row__chevron {
+            color: #9ca3af;
+            flex-shrink: 0;
+            transition: transform var(--dur-fast, 120ms) var(--ease-out, ease),
+                color var(--dur-fast, 120ms) var(--ease-out, ease);
+        }
+
+        .notification-row--link:hover .notification-row__chevron {
+            color: var(--color-primary, #6366f1);
+            transform: translateX(2px);
+        }
+
+        .notification-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 11px 16px;
+            border-top: 1px solid #eee;
+            background: #fbfbfd;
+            color: var(--color-primary, #6366f1);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 0 0 var(--radius-md, 12px) var(--radius-md, 12px);
+            transition: background-color var(--dur-fast, 120ms) var(--ease-out, ease);
+        }
+
+        .notification-footer:hover,
+        .notification-footer:focus-visible {
+            background: var(--color-primary-soft, #e0e7ff);
+            color: var(--color-primary-dark, #4338ca);
+            text-decoration: none;
+            outline: none;
+        }
+
         .user-wrapper {
             position: relative;
             cursor: pointer;
@@ -289,16 +342,20 @@
                     <div style="max-height: 300px; overflow-y: auto;">
                         @if(isset($reorderNotifications) && count($reorderNotifications) > 0)
                             @foreach($reorderNotifications as $notification)
-                                <div class="notification-row" style="padding: 12px 16px; border-bottom: 1px solid #f5f5f5;">
+                                {{-- Each notification is a shortcut: it opens Inventory
+                                     already searched down to this product. --}}
+                                <a href="{{ url('/inventory') }}?search={{ urlencode($notification['name']) }}"
+                                    class="notification-row notification-row--link"
+                                    title="Open {{ $notification['name'] }} in Inventory">
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         @if($notification['priority'] === 'High')
-                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></div>
+                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex-shrink: 0;"></div>
                                         @elseif($notification['priority'] === 'Medium')
-                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></div>
+                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0;"></div>
                                         @else
-                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></div>
+                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; flex-shrink: 0;"></div>
                                         @endif
-                                        <div style="flex: 1;">
+                                        <div style="flex: 1; min-width: 0;">
                                             <div style="font-weight: 500; color: #23272f; font-size: 14px;">
                                                 {{ $notification['name'] }}</div>
                                             <div style="color: #666; font-size: 12px;">
@@ -306,30 +363,36 @@
                                                 {{ $notification['recommended_quantity'] }} units
                                             </div>
                                         </div>
-                                        <div style="text-align: right;">
+                                        <div style="text-align: right; flex-shrink: 0;">
                                             <div style="font-size: 11px; color: #ef4444; font-weight: 600;">
                                                 {{ $notification['priority'] }}</div>
                                         </div>
+                                        <svg class="notification-row__chevron" width="16" height="16" fill="none"
+                                            stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
                                     </div>
-                                </div>
+                                </a>
                             @endforeach
                         @endif
                         @if(isset($pendingApprovalCount) && $pendingApprovalCount > 0)
-                            <div style="padding: 12px 16px; border-bottom: 1px solid #f5f5f5; background: #f8fafc;">
+                            {{-- Whole row is the shortcut now, not just the "View" word. --}}
+                            <a href="/new-approval-requests" class="notification-row notification-row--link"
+                                style="background: #f8fafc;" title="Open Approval Requests">
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #6366f1;"></div>
-                                    <div style="flex: 1;">
+                                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #6366f1; flex-shrink: 0;"></div>
+                                    <div style="flex: 1; min-width: 0;">
                                         <div style="font-weight: 500; color: #23272f; font-size: 14px;">Pending Approval
                                             Requests</div>
                                         <div style="color: #666; font-size: 12px;">{{ $pendingApprovalCount }} request(s)
                                             need admin review</div>
                                     </div>
-                                    <div style="text-align: right;">
-                                        <a href="/new-approval-requests"
-                                            style="font-size: 12px; color: #6366f1; font-weight: 600; text-decoration: underline;">View</a>
-                                    </div>
+                                    <svg class="notification-row__chevron" width="16" height="16" fill="none"
+                                        stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
                                 </div>
-                            </div>
+                            </a>
                         @endif
                         @if((!isset($reorderNotifications) || count($reorderNotifications) === 0) && (!isset($pendingApprovalCount) || $pendingApprovalCount === 0))
                             <div style="padding: 20px 16px; text-align: center; color: #666;">
@@ -340,6 +403,19 @@
                             </div>
                         @endif
                     </div>
+
+                    {{-- Footer shortcut. Staff cannot open the reorder
+                         recommendations panel, so they get the plain list. --}}
+                    @if(isset($reorderNotifications) && count($reorderNotifications) > 0)
+                        <a class="notification-footer"
+                            href="{{ url('/inventory') }}{{ Auth::user()->role !== 'staff' ? '?reorder=1' : '' }}">
+                            <span>View all reorder recommendations</span>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                                viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </a>
+                    @endif
                 </div>
             </div>
             <div class="user-wrapper">

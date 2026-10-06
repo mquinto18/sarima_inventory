@@ -146,6 +146,20 @@
                 </div>
                 <div style="color: var(--color-text-muted); font-size: 0.85rem; margin-top: 8px;">Used when a product has no supplier-specific lead time configured.</div>
             </div>
+
+            <!-- Pricing -->
+            <div class="card-panel" style="flex: 1; min-width: 280px;">
+                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 4px; color: var(--color-text);">Pricing</div>
+                <div style="color: var(--color-text-muted); font-size: 0.92rem; margin-bottom: 20px;">Controls how a product's selling price is derived from its primary supplier's cost.</div>
+
+                <label for="default_markup_percent" style="display:block; font-weight:600; margin-bottom:7px; color: var(--color-text);">Default Markup (%)</label>
+                <div class="form-input-group">
+                    <span class="form-input-icon currency-icon">%</span>
+                    <input type="number" min="0" step="0.1" name="default_markup_percent" id="default_markup_percent"
+                        value="{{ old('default_markup_percent', $settings['default_markup_percent']) }}" required>
+                </div>
+                <div style="color: var(--color-text-muted); font-size: 0.85rem; margin-top: 8px;">When a product's primary supplier cost is set, its selling price is automatically recalculated as cost + this markup.</div>
+            </div>
         </div>
 
         <button type="submit" class="btn-action edit" style="padding: 13px 32px; font-size: 1.05rem;">Save Settings</button>

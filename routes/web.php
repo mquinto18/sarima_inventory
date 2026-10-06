@@ -25,6 +25,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/settings', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
 
     Route::get('products/search', [ProductController::class, 'search']);
+    Route::post('/products/{id}/dispose-expired', [ProductController::class, 'disposeExpired'])->name('products.dispose-expired');
     // Reorder approval removed: stock must arrive through a supplier purchase
     // order (Suppliers -> Purchase Orders -> Receive Delivery), not by adding
     // stock directly from a recommendation.
@@ -45,15 +46,26 @@ Route::middleware(['auth'])->group(function () {
     // Suppliers
     Route::get('/suppliers', [\App\Http\Controllers\SupplierController::class, 'index'])->name('suppliers.index');
     Route::post('/suppliers', [\App\Http\Controllers\SupplierController::class, 'store'])->name('suppliers.store');
+    // Registered before the /suppliers/{supplier} routes below: those single-
+    // segment patterns would otherwise swallow /suppliers/link-product and
+    // /suppliers/product-links/{id}, treating "link-product"/"product-links"
+    // as the supplier identifier.
+    Route::post('/suppliers/link-product', [\App\Http\Controllers\SupplierController::class, 'linkProduct'])->name('suppliers.link-product');
+    Route::post('/suppliers/link-products', [\App\Http\Controllers\SupplierController::class, 'linkProducts'])->name('suppliers.link-products');
+    Route::delete('/suppliers/product-links/{productSupplier}', [\App\Http\Controllers\SupplierController::class, 'unlinkProduct'])->name('suppliers.unlink-product');
     Route::put('/suppliers/{supplier}', [\App\Http\Controllers\SupplierController::class, 'update'])->name('suppliers.update');
     Route::delete('/suppliers/{supplier}', [\App\Http\Controllers\SupplierController::class, 'destroy'])->name('suppliers.destroy');
-    Route::post('/suppliers/link-product', [\App\Http\Controllers\SupplierController::class, 'linkProduct'])->name('suppliers.link-product');
-    Route::delete('/suppliers/product-links/{productSupplier}', [\App\Http\Controllers\SupplierController::class, 'unlinkProduct'])->name('suppliers.unlink-product');
 
     // Purchase Orders
     Route::get('/purchase-orders', [\App\Http\Controllers\PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
     Route::get('/purchase-orders/{purchaseOrder}', [\App\Http\Controllers\PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+    Route::post('/purchase-orders/{purchaseOrder}/send', [\App\Http\Controllers\PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
     Route::post('/purchase-orders/{purchaseOrder}/receive', [\App\Http\Controllers\PurchaseOrderController::class, 'receiveDelivery'])->name('purchase-orders.receive');
+    // Manual overrides: let an admin record the supplier's response directly
+    // when the email confirm link is unreachable or the supplier responded
+    // some other way (phone, in person), instead of only via that link.
+    Route::post('/purchase-orders/{purchaseOrder}/mark-confirmed', [\App\Http\Controllers\PurchaseOrderController::class, 'markConfirmed'])->name('purchase-orders.mark-confirmed');
+    Route::post('/purchase-orders/{purchaseOrder}/mark-cancelled', [\App\Http\Controllers\PurchaseOrderController::class, 'markCancelled'])->name('purchase-orders.mark-cancelled');
 
     // Transaction logs (read-only). Role enforced in the controller via
     // denyStaff(), matching Suppliers / Purchase Orders / Settings.
@@ -75,6 +87,26 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/approval-requests/{id}/approve', [EditRequestController::class, 'approve'])->name('edit-requests.approve');
     Route::post('/approval-requests/{id}/reject', [EditRequestController::class, 'reject'])->name('edit-requests.reject');
 });
+
+// Postmark inbound webhook: a supplier's reply to a purchase order email
+// lands here and, once matched to a PO and sender-verified, confirms it.
+// Public (no auth) - protected instead by the shared token query param and
+// exempted from CSRF in bootstrap/app.php.
+Route::post('/webhooks/postmark/inbound', [\App\Http\Controllers\Webhooks\PostmarkInboundController::class, 'handle'])
+    ->name('webhooks.postmark.inbound');
+
+// Supplier-facing Approve/Decline landing page, reached from the PO email.
+// Public (no auth) - identified by the per-PO confirmation_token instead of
+// a login. The GET page only ever renders (safe for email "Safe Links"
+// scanners to prefetch); the POST actions are the ones that actually change
+// status, and use normal form-submitted CSRF tokens so no exemption is
+// needed in bootstrap/app.php.
+Route::get('/po-confirm/{token}', [\App\Http\Controllers\PurchaseOrderConfirmationController::class, 'show'])
+    ->name('purchase-orders.confirm.show');
+Route::post('/po-confirm/{token}/approve', [\App\Http\Controllers\PurchaseOrderConfirmationController::class, 'approve'])
+    ->name('purchase-orders.confirm.approve');
+Route::post('/po-confirm/{token}/decline', [\App\Http\Controllers\PurchaseOrderConfirmationController::class, 'decline'])
+    ->name('purchase-orders.confirm.decline');
 
 // Test SARIMA functionality
 Route::get('test/sarima', function () {

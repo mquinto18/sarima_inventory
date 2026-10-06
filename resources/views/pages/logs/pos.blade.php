@@ -29,7 +29,8 @@
                 <tbody>
                     @forelse($transactions as $txn)
                         <tr>
-                            <td>{{ \Carbon\Carbon::parse($txn->occurred_at)->format('M d, Y g:i A') }}</td>
+                            {{-- occurred_at is stored in UTC; shown in Asia/Manila so it matches the calendar day actually picked in the From/To filter above. --}}
+                            <td>{{ \Carbon\Carbon::parse($txn->occurred_at, 'UTC')->setTimezone('Asia/Manila')->format('M d, Y g:i A') }}</td>
                             <td class="log-mono">{{ strtoupper(substr($txn->pos_transaction_id, 0, 8)) }}</td>
                             <td>
                                 {{-- Null for the transactions recorded before the

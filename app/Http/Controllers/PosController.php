@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ExpiredProductException;
 use App\Exceptions\InsufficientStockException;
 use App\Exceptions\ShortPaymentException;
 use App\Models\EditRequest;
@@ -22,7 +23,8 @@ class PosController extends Controller
      */
     public function index()
     {
-        $products = Product::orderBy('name')->get(['id', 'name', 'sku', 'price', 'stock']);
+        // `category` drives the filter chips above the product grid.
+        $products = Product::orderBy('name')->get(['id', 'name', 'sku', 'price', 'stock', 'category', 'expiry_date']);
 
         $reorderCount = ProductController::getReorderCount();
         $reorderNotifications = ProductController::getReorderNotifications();
@@ -51,7 +53,7 @@ class PosController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $columns = ['id', 'name', 'sku', 'price', 'stock'];
+        $columns = ['id', 'name', 'sku', 'price', 'stock', 'category', 'expiry_date'];
 
         $exact = Product::whereRaw('LOWER(sku) = ?', [strtolower($q)])->first($columns);
 
@@ -59,10 +61,14 @@ class PosController extends Controller
             return response()->json(['products' => [$exact]]);
         }
 
+        // The cap exists so a one-letter query on a large catalogue cannot
+        // return everything on every keystroke. 20 was low enough that a search
+        // could hide matching products from the cashier; 200 is generous while
+        // still bounded.
         $products = Product::where('name', 'LIKE', "%{$q}%")
             ->orWhere('sku', 'LIKE', "%{$q}%")
             ->orderBy('name')
-            ->limit(20)
+            ->limit(200)
             ->get($columns);
 
         return response()->json(['products' => $products]);
@@ -98,6 +104,15 @@ class PosController extends Controller
 
                 foreach ($validated['items'] as $item) {
                     $product = Product::findOrFail($item['product_id']);
+
+                    if ($product->expiry_date && $product->expiry_date->isPast()) {
+                        throw new ExpiredProductException(
+                            $product->id,
+                            $product->name,
+                            $product->expiry_date->format('Y-m-d')
+                        );
+                    }
+
                     $quantity = (int) $item['quantity'];
                     $lineTotal = round($quantity * (float) $product->price, 2);
 
@@ -152,6 +167,15 @@ class PosController extends Controller
                     . number_format($e->total, 2) . ').',
                 'total_amount' => $e->total,
                 'amount_tendered' => $e->tendered,
+            ], 422);
+        } catch (ExpiredProductException $e) {
+            // Thrown inside the transaction closure above; catching it out
+            // here lets Laravel's DB::transaction() auto-rollback the whole
+            // checkout instead of only skipping this one line.
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'product_id' => $e->productId,
             ], 422);
         } catch (InsufficientStockException $e) {
             // Thrown inside the transaction closure above; catching it out

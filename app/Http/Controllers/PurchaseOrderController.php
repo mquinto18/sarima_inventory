@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderReceipt;
 use App\Services\InventoryService;
+use App\Services\PurchaseOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PurchaseOrderController extends Controller
 {
@@ -81,6 +83,132 @@ class PurchaseOrderController extends Controller
     }
 
     /**
+     * Email this draft purchase order to its supplier: generates the PDF,
+     * issues a confirmation token embedded in the Reply-To address (so the
+     * supplier's reply can be matched back to this PO by the inbound mail
+     * webhook), and marks the PO as sent.
+     */
+    public function send(Request $request, $id)
+    {
+        $this->denyStaff();
+
+        $purchaseOrder = PurchaseOrder::with('supplier')->findOrFail($id);
+
+        if ($purchaseOrder->status !== 'draft') {
+            $message = 'Only draft purchase orders can be sent to the supplier.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        try {
+            app(PurchaseOrderService::class)->sendToSupplier($purchaseOrder);
+        } catch (\Throwable $e) {
+            Log::error("Failed to send PO {$purchaseOrder->po_number}: " . $e->getMessage());
+
+            $message = 'Could not send this purchase order to the supplier. Please try again.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 500);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Purchase order sent to supplier.',
+                'purchase_order' => $purchaseOrder->fresh(['supplier', 'items.product']),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Purchase order sent to supplier!');
+    }
+
+    /**
+     * Manual override for when the supplier confirms by phone/in person, or
+     * their confirmation link is unreachable (e.g. a PO emailed before a
+     * deployment/URL fix) - lets an admin record the same outcome the
+     * supplier's own Approve button or email reply would have, without
+     * depending on either.
+     */
+    public function markConfirmed(Request $request, $id)
+    {
+        $this->denyStaff();
+
+        $purchaseOrder = PurchaseOrder::findOrFail($id);
+
+        if ($purchaseOrder->status !== 'sent') {
+            $message = 'Only a sent purchase order can be manually confirmed.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        $note = trim((string) $request->input('note'));
+
+        $purchaseOrder->update([
+            'status' => 'confirmed',
+            'confirmed_at' => now(),
+            'confirmation_note' => $note !== '' ? $note : 'Manually confirmed by ' . (Auth::user()->name ?? 'admin') . ' (no supplier link response).',
+        ]);
+
+        Log::info("PurchaseOrderController: PO {$purchaseOrder->po_number} manually marked confirmed by user #" . Auth::id() . '.');
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Purchase order marked as confirmed.']);
+        }
+
+        return redirect()->back()->with('success', 'Purchase order marked as confirmed.');
+    }
+
+    /**
+     * Manual override for cancelling a purchase order the supplier declined
+     * by phone/in person, or that's no longer needed - same effect as the
+     * supplier's own Decline button, without depending on it. Allowed any
+     * time before the order is received, matching how far along a real
+     * decline could plausibly still happen.
+     */
+    public function markCancelled(Request $request, $id)
+    {
+        $this->denyStaff();
+
+        $purchaseOrder = PurchaseOrder::findOrFail($id);
+
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            $message = 'This purchase order is already finalized and cannot be cancelled.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        $note = trim((string) $request->input('note'));
+
+        $purchaseOrder->update([
+            'status' => 'cancelled',
+            'confirmation_note' => $note !== '' ? $note : 'Manually cancelled by ' . (Auth::user()->name ?? 'admin') . '.',
+        ]);
+
+        Log::info("PurchaseOrderController: PO {$purchaseOrder->po_number} manually cancelled by user #" . Auth::id() . '.');
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Purchase order cancelled.']);
+        }
+
+        return redirect()->back()->with('success', 'Purchase order cancelled.');
+    }
+
+    /**
      * Receive a delivery against this purchase order: adds stock via
      * InventoryService (the only place stock is ever mutated), increments
      * quantity_received per line, and recalculates the PO status.
@@ -92,7 +220,30 @@ class PurchaseOrderController extends Controller
         $validated = $request->validate([
             'items' => 'array',
             'items.*.quantity_received' => 'nullable|integer|min:0',
+            'items.*.expiry_date' => 'nullable|date',
         ]);
+
+        // Required whenever that same line is actually receiving stock
+        // (qty > 0) - newly arrived stock has its own expiry, and since this
+        // app tracks one expiry_date per product rather than per batch,
+        // skipping it would silently leave the old batch's date attached to
+        // the new one. Done as a manual pass after validate() rather than a
+        // validation rule: Laravel skips non-required rules (including
+        // closures) entirely when a field is empty, which made a closure-
+        // based "required if quantity > 0" check never actually run.
+        $missingExpiry = [];
+
+        foreach ($validated['items'] ?? [] as $itemId => $itemInput) {
+            $qty = (int) ($itemInput['quantity_received'] ?? 0);
+
+            if ($qty > 0 && empty($itemInput['expiry_date'] ?? null)) {
+                $missingExpiry["items.{$itemId}.expiry_date"] = ['An expiry date is required for any item being received.'];
+            }
+        }
+
+        if (!empty($missingExpiry)) {
+            throw \Illuminate\Validation\ValidationException::withMessages($missingExpiry);
+        }
 
         $purchaseOrder = DB::transaction(function () use ($id, $validated) {
             // Lock the PO row so two concurrent receive requests for the same
@@ -121,6 +272,14 @@ class PurchaseOrderController extends Controller
 
                 $inventoryService->addStock($item->product, $qty, 'purchase_receipt', $purchaseOrder, Auth::id());
                 $item->increment('quantity_received', $qty);
+
+                // The new stock replaces whatever batch was there before
+                // (this app tracks one expiry_date per product, not per
+                // batch) - overwrite intentionally, including clearing a
+                // null left behind by a full expired-stock write-off.
+                if (!empty($itemsInput[$item->id]['expiry_date'])) {
+                    $item->product->update(['expiry_date' => $itemsInput[$item->id]['expiry_date']]);
+                }
 
                 // quantity_received is only a running total, so the individual
                 // delivery is recorded here. Written inside the same transaction

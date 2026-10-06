@@ -1,5 +1,13 @@
 @extends('layouts.app')
 
+@push('styles')
+    {{-- Warm the full-resolution logo while the user is typing, so the
+         post-login splash (components/login-splash.blade.php) renders it
+         instantly instead of flashing an empty box. The dashboard uses the same
+         file for its watermark, so this download is used twice. --}}
+    <link rel="preload" as="image" href="{{ asset('images/logo-icon.png') }}">
+@endpush
+
 @section('content')
 <style>
     .auth-shell {

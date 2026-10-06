@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\StockMovement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InventoryService
 {
@@ -34,7 +35,7 @@ class InventoryService
      */
     public function adjustStock(Product $product, int $delta, string $type, ?Model $reference = null, ?int $userId = null, ?string $notes = null): Product
     {
-        return DB::transaction(function () use ($product, $delta, $type, $reference, $userId, $notes) {
+        $locked = DB::transaction(function () use ($product, $delta, $type, $reference, $userId, $notes) {
             $locked = Product::where('id', $product->id)->lockForUpdate()->first();
 
             $stockBefore = $locked->stock;
@@ -62,5 +63,24 @@ class InventoryService
 
             return $locked;
         });
+
+        // Queuing (not checking immediately) lets ReplenishmentService batch
+        // every product touched by this request into one PO/email per
+        // supplier instead of one per product - see queueProduct(). It
+        // internally defers the actual PDF/email send until the outermost
+        // transaction commits (every caller of adjustStock() wraps it in
+        // its own DB::transaction()), so a mail/PO failure can never undo a
+        // sale/adjustment/disposal that already committed, and a supplier
+        // never gets an email for a PO that got rolled back. Only decreases
+        // can push a product to/below its reorder point.
+        if ($delta < 0) {
+            try {
+                app(ReplenishmentService::class)->queueProduct($locked);
+            } catch (\Throwable $e) {
+                Log::error("InventoryService: replenishment check failed for product #{$locked->id} ({$locked->name}): " . $e->getMessage());
+            }
+        }
+
+        return $locked;
     }
 }

@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
@@ -33,7 +34,30 @@ class PurchaseOrderMail extends Mailable
     {
         return new Envelope(
             subject: "Purchase Order {$this->purchaseOrder->po_number} from Larios Pharmacy",
+            replyTo: $this->buildReplyTo(),
         );
+    }
+
+    /**
+     * Reply-To that routes the supplier's reply back to Postmark's inbound
+     * webhook, with the PO's confirmation token as the mailbox hash
+     * (local+token@domain) so the webhook can match the reply to this PO.
+     *
+     * @return array<int, \Illuminate\Mail\Mailables\Address>
+     */
+    private function buildReplyTo(): array
+    {
+        $inboundAddress = config('services.postmark.inbound_address');
+
+        if (!$inboundAddress || !$this->purchaseOrder->confirmation_token) {
+            return [];
+        }
+
+        [$local, $domain] = explode('@', $inboundAddress, 2);
+
+        return [
+            new Address("{$local}+{$this->purchaseOrder->confirmation_token}@{$domain}"),
+        ];
     }
 
     /**

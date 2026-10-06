@@ -6,6 +6,7 @@ use App\Models\EditRequest;
 use App\Models\PurchaseOrderReceipt;
 use App\Models\Sale;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -82,15 +83,24 @@ class TransactionLogController extends Controller
 
     /**
      * Constrain a query to a validated from/to range on the given column.
+     *
+     * The picker's dates are Asia/Manila calendar days - what "today" means
+     * to whoever is filtering - but every timestamp is stored in UTC
+     * (config/app.php). whereDate() compares the raw UTC date, which is 8
+     * hours behind: a sale at 2am Manila time is still "yesterday" in UTC,
+     * so it would silently fall outside a filter for the Manila day it
+     * actually happened on (or inside the wrong one). Converting each
+     * boundary to the real UTC instant that Manila day starts/ends at fixes
+     * that; whereDate() on the bare string cannot express it.
      */
     private function applyDateFilter($query, ?string $from, ?string $to, string $column)
     {
         if ($from) {
-            $query->whereDate($column, '>=', $from);
+            $query->where($column, '>=', Carbon::parse($from, 'Asia/Manila')->startOfDay()->setTimezone('UTC'));
         }
 
         if ($to) {
-            $query->whereDate($column, '<=', $to);
+            $query->where($column, '<=', Carbon::parse($to, 'Asia/Manila')->endOfDay()->setTimezone('UTC'));
         }
 
         return $query;
@@ -148,8 +158,12 @@ class TransactionLogController extends Controller
     }
 
     /**
-     * Supplier deliveries — one row per quantity actually received against a
-     * purchase order line.
+     * Supplier deliveries, batched: receiveDelivery() writes one
+     * PurchaseOrderReceipt row per product line, but all of them in the same
+     * admin action share the same (purchase_order_id, received_at,
+     * received_by) - that tuple is this page's definition of "one delivery",
+     * so a batch of 4 products received together shows as a single row
+     * listing all 4, not 4 separate rows for the same delivery.
      */
     public function deliveries(Request $request)
     {
@@ -157,17 +171,48 @@ class TransactionLogController extends Controller
 
         [$from, $to, $dateError] = $this->dateRange($request);
 
-        $query = PurchaseOrderReceipt::query()
-            ->with(['purchaseOrder.supplier', 'product', 'receivedBy'])
-            ->orderByDesc('received_at')
-            ->orderByDesc('id');
+        $batchQuery = PurchaseOrderReceipt::query()
+            ->groupBy('purchase_order_id', 'received_at', 'received_by')
+            ->select([
+                'purchase_order_id',
+                'received_at',
+                'received_by',
+                DB::raw('SUM(quantity_received) as total_quantity'),
+                DB::raw('COUNT(*) as line_count'),
+            ])
+            ->orderByDesc('received_at');
 
         if (!$dateError) {
-            $this->applyDateFilter($query, $from, $to, 'received_at');
+            $this->applyDateFilter($batchQuery, $from, $to, 'received_at');
+        }
+
+        $batches = $batchQuery->paginate(25)->withQueryString();
+
+        // One query for every line belonging to this page's batches, grouped
+        // back into the same tuples - the same "batch lookup" shape as the
+        // cashier lookup in pos(), just keyed on the composite batch instead
+        // of a single id.
+        $lines = collect();
+
+        if ($batches->isNotEmpty()) {
+            $lines = PurchaseOrderReceipt::with(['purchaseOrder.supplier', 'product', 'receivedBy'])
+                ->where(function ($query) use ($batches) {
+                    foreach ($batches as $batch) {
+                        $query->orWhere(function ($q) use ($batch) {
+                            $q->where('purchase_order_id', $batch->purchase_order_id)
+                                ->where('received_at', $batch->received_at)
+                                ->where('received_by', $batch->received_by);
+                        });
+                    }
+                })
+                ->orderBy('id')
+                ->get()
+                ->groupBy(fn ($r) => $r->purchase_order_id . '|' . $r->received_at . '|' . $r->received_by);
         }
 
         return view('pages.logs.deliveries', array_merge($this->shellData(), [
-            'receipts' => $query->paginate(25)->withQueryString(),
+            'batches' => $batches,
+            'lines' => $lines,
             'from' => $from,
             'to' => $to,
             'dateError' => $dateError,

@@ -168,6 +168,16 @@
 			</div>
 		</div>
 		<div class="dashboard-hero-actions">
+			@if(isset($forecastAccuracy) && $forecastAccuracy['products_analyzed'] > 0)
+				<a href="javascript:void(0)" data-modal-open="accuracyMetricsModal" class="btn-action ghost">Model Accuracy</a>
+			@endif
+			@if(isset($restockingRecommendations))
+				<a href="javascript:void(0)" data-modal-open="restockingModal" class="btn-action ghost">Restocking</a>
+			@endif
+			@if(isset($seasonalityAnalysis))
+				<a href="javascript:void(0)" data-modal-open="seasonalityModal" class="btn-action ghost">Seasonal Patterns</a>
+				<a href="javascript:void(0)" data-modal-open="modelParamsModal" class="btn-action ghost">Model Parameters</a>
+			@endif
 			<a href="javascript:void(0)" data-open-report class="btn-action ghost">Generate Report</a>
 			<a href="/inventory" class="btn-action ghost">View Inventory</a>
 		</div>
@@ -221,144 +231,11 @@
 		</div>
 	</div>
 
-	<!-- Model Accuracy Metrics (MAE / RMSE / MAPE / MASE) -->
-	@if(isset($forecastAccuracy) && $forecastAccuracy['products_analyzed'] > 0)
-		<div class="row mb-4">
-			<div class="col-12">
-				<div class="stats-card">
-					@php
-						$maseTitle = $forecastAccuracy['mase'] !== null
-							? ($forecastAccuracy['mase'] < 1 ? 'Beats a naive forecast' : 'Worse than a naive forecast')
-							: 'Not enough data to compute';
-						$methodologyTitle = 'Based on ' . $forecastAccuracy['products_analyzed'] . ' product' . ($forecastAccuracy['products_analyzed'] === 1 ? '' : 's') . ' with enough sales history. Each is evaluated by holding out its most recent month of sales and forecasting it from the prior months.';
-					@endphp
-					<h4>
-						📐 Model Accuracy Metrics
-						<span title="{{ $methodologyTitle }}" style="cursor: help; font-size: 0.9rem; color: var(--color-text-muted);">&#9432;</span>
-					</h4>
-					<div class="mb-3">
-						<span style="font-size: 1.3rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['accuracy_percentage'], 1) }}% Overall Accuracy</span>
-						@php
-							$statusBadgeClass = match($forecastAccuracy['status']) {
-								'Excellent', 'Good' => 'badge-success',
-								'Fair' => 'badge-warning',
-								default => 'badge-danger',
-							};
-						@endphp
-						<span class="badge {{ $statusBadgeClass }}" style="margin-left: 8px;">{{ $forecastAccuracy['status'] }}</span>
-					</div>
-					<div class="row">
-						<div class="col-6 col-md-3 mb-3">
-							<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
-								MAE <span title="Average error, in units" style="cursor: help;">&#9432;</span>
-							</div>
-							<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['mae'], 2) }}</div>
-						</div>
-						<div class="col-6 col-md-3 mb-3">
-							<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
-								RMSE <span title="Penalizes large misses more" style="cursor: help;">&#9432;</span>
-							</div>
-							<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['rmse'], 2) }}</div>
-						</div>
-						<div class="col-6 col-md-3 mb-3">
-							<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
-								MAPE <span title="Average error, as % of actual" style="cursor: help;">&#9432;</span>
-							</div>
-							<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['mape'], 2) }}%</div>
-						</div>
-						<div class="col-6 col-md-3 mb-3">
-							<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
-								MASE <span title="{{ $maseTitle }}" style="cursor: help;">&#9432;</span>
-							</div>
-							<div class="{{ $forecastAccuracy['mase'] !== null ? ($forecastAccuracy['mase'] < 1 ? 'growth-positive' : 'growth-negative') : '' }}"
-								style="font-size: 1.4rem; font-weight: 700;">
-								{{ $forecastAccuracy['mase'] !== null ? number_format($forecastAccuracy['mase'], 2) : 'N/A' }}
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	@endif
+	{{-- Model Accuracy Metrics now lives in #accuracyMetricsModal, opened from
+	     the hero actions — see the bottom of this file. --}}
 
-	<!-- Automated Restocking Recommendations / Seasonal Pattern Analysis / SARIMA Model Parameters -->
-	<div class="row mb-4">
-		@if(isset($restockingRecommendations))
-			<div class="col-md-4">
-				<div class="stats-card">
-					<h4>🚨 Automated Restocking Recommendations</h4>
-					@if(count($restockingRecommendations['urgent_restock']) > 0)
-						<div class="alert alert-danger">
-							<h6><strong>🔴 Urgent Restock Required
-									({{ count($restockingRecommendations['urgent_restock']) }} items)</strong></h6>
-							@foreach(array_slice($restockingRecommendations['urgent_restock'], 0, 3) as $item)
-								<div class="d-flex justify-content-between">
-									<span>{{ $item['product_name'] }}</span>
-									<span class="badge badge-danger">{{ $item['current_stock'] }} left</span>
-								</div>
-							@endforeach
-						</div>
-					@endif
-
-					@if(count($restockingRecommendations['monitor_closely']) > 0)
-						<div class="alert alert-warning">
-							<h6><strong>🟡 Monitor Closely
-									({{ count($restockingRecommendations['monitor_closely']) }} items)</strong></h6>
-							@foreach(array_slice($restockingRecommendations['monitor_closely'], 0, 3) as $item)
-								<div class="d-flex justify-content-between">
-									<span>{{ $item['product_name'] }}</span>
-									<span class="badge badge-warning">{{ $item['current_stock'] }} stock</span>
-								</div>
-							@endforeach
-						</div>
-					@endif
-				</div>
-			</div>
-		@endif
-
-		@if(isset($seasonalityAnalysis))
-			<div class="col-md-4">
-				<div class="stats-card">
-					<h4>📅 Seasonal Pattern Analysis</h4>
-					<div class="mb-3">
-						<h6>Peak Sales Months:</h6>
-						@foreach($seasonalityAnalysis['peak_months'] as $month)
-							<span
-								class="badge badge-success mr-1">{{ DateTime::createFromFormat('!m', $month)->format('M') }}</span>
-						@endforeach
-					</div>
-					<div class="mb-3">
-						<h6>Low Sales Months:</h6>
-						@foreach($seasonalityAnalysis['low_months'] as $month)
-							<span
-								class="badge badge-secondary mr-1">{{ DateTime::createFromFormat('!m', $month)->format('M') }}</span>
-						@endforeach
-					</div>
-					<small class="text-muted">
-						Seasonality helps predict demand fluctuations and optimize inventory levels throughout the year.
-					</small>
-				</div>
-			</div>
-			<div class="col-md-4">
-				<div class="stats-card">
-					<h4>⚙️ SARIMA Model Parameters</h4>
-					@if(isset($forecast['model_parameters']))
-						<small><strong>AR Order (p):</strong> {{ $forecast['model_parameters']['p'] }}</small><br>
-						<small><strong>Differencing (d):</strong> {{ $forecast['model_parameters']['d'] }}</small><br>
-						<small><strong>MA Order (q):</strong> {{ $forecast['model_parameters']['q'] }}</small><br>
-						<small><strong>Seasonal AR (P):</strong> {{ $forecast['model_parameters']['P'] }}</small><br>
-						<small><strong>Seasonal Diff (D):</strong> {{ $forecast['model_parameters']['D'] }}</small><br>
-						<small><strong>Seasonal MA (Q):</strong> {{ $forecast['model_parameters']['Q'] }}</small>
-						<div class="mt-2">
-							<small><strong>Seasonal Period (s):</strong> {{ $forecast['model_parameters']['s'] }}
-								months</small><br>
-							<small><strong>Months Forecasted:</strong> {{ count($forecast['predicted']) }}</small>
-						</div>
-					@endif
-				</div>
-			</div>
-		@endif
-	</div>
+	{{-- Restocking, Seasonal Patterns and Model Parameters now live in their
+	     own modals, opened from the hero actions — see the bottom of this file. --}}
 
 	<!-- Actual Sales and Forecast Charts -->
 	<div class="charts-row">
@@ -437,7 +314,7 @@
 										@else
 											<td><strong>₱{{ number_format($revenue, 2) }}</strong></td>
 										@endif
-										<td>{{ number_format($salesData) }} units</td>
+										<td>{{ number_format($salesData) }} items</td>
 										<td>
 											@if($growth !== null)
 												@if($growth > 0)
@@ -489,7 +366,7 @@
 								<tr>
 									<th>Total</th>
 									<th><strong>₱{{ number_format($totalRevenue, 2) }}</strong></th>
-									<th>{{ number_format($totalQuantity) }} units</th>
+									<th>{{ number_format($totalQuantity) }} items</th>
 									<th colspan="2">
 										<span class="text-muted">
 											Avg:
@@ -524,6 +401,17 @@
 						</thead>
 						<tbody>
 							@if(isset($forecast['predicted']))
+								@php
+									// Baseline for judging each forecasted month: the recent
+									// actual average, not "how many months away is this" - a
+									// month 5 months out with a predicted spike and one with a
+									// predicted crash used to get the identical "Long-term
+									// Planning" label. Last 6 non-zero historical months, same
+									// window used elsewhere in this app (reorder point, demand
+									// forecast, accuracy check).
+									$recentHistory = array_filter(array_slice($forecast['historical'] ?? [], -6));
+									$recentAverage = count($recentHistory) > 0 ? array_sum($recentHistory) / count($recentHistory) : null;
+								@endphp
 								@foreach($forecast['predicted'] as $month => $prediction)
 									<tr>
 										<td><strong>{{ Carbon\Carbon::parse($month)->format('M Y') }}</strong></td>
@@ -540,16 +428,36 @@
 
 										<td>
 											@php
-												$currentMonth = \Carbon\Carbon::now();
-												$forecastMonth = \Carbon\Carbon::parse($month);
-												$monthsAway = $currentMonth->diffInMonths($forecastMonth);
+												$deviationPercent = ($recentAverage && $recentAverage > 0)
+													? (($prediction - $recentAverage) / $recentAverage) * 100
+													: null;
+
+												if ($deviationPercent === null) {
+													$recLabel = 'Insufficient Data';
+													$recClass = 'badge-secondary';
+												} elseif ($deviationPercent >= 15) {
+													$recLabel = 'Increase Stock';
+													$recClass = 'badge-danger';
+												} elseif ($deviationPercent <= -15) {
+													$recLabel = 'Reduce Orders';
+													$recClass = 'badge-info';
+												} else {
+													$recLabel = 'Maintain Levels';
+													$recClass = 'badge-warning';
+												}
+
+												// A wide confidence band relative to the prediction
+												// means the model itself isn't sure - flagged
+												// separately rather than folded into the main label,
+												// since "increase stock, but we're not confident" is a
+												// different message than "increase stock".
+												$ci = $forecast['confidence_intervals'][$month] ?? null;
+												$isLowConfidence = $ci && $prediction > 0
+													&& (($ci['upper'] - $ci['lower']) / $prediction) > 0.5;
 											@endphp
-											@if($monthsAway <= 1)
-												<span class="badge badge-danger">Prepare Inventory</span>
-											@elseif($monthsAway <= 3)
-												<span class="badge badge-warning">Monitor Trends</span>
-											@else
-												<span class="badge badge-info">Long-term Planning</span>
+											<span class="badge {{ $recClass }}">{{ $recLabel }}</span>
+											@if($isLowConfidence)
+												<span class="badge badge-light" title="The confidence range for this month is wide relative to the prediction">Low Confidence</span>
 											@endif
 										</td>
 									</tr>
@@ -569,7 +477,7 @@
 				<div class="stats-card">
 					<h4>📦 Product-Specific Demand Forecasting & Inventory Optimization</h4>
 					<div class="table-responsive">
-						<table class="table table-sm">
+						<table class="table table-sm" id="demandForecastTable">
 							<thead class="thead-dark">
 								<tr>
 									<th>Product</th>
@@ -581,8 +489,11 @@
 								</tr>
 							</thead>
 							<tbody>
-								@foreach(array_slice($demandForecast, 0, 10) as $productId => $productForecast)
-									<tr>
+								{{-- All products render into the DOM; the script below shows
+									 10 rows at a time via data-df-page, so the whole catalog
+									 is reachable without a server round-trip per page. --}}
+								@foreach($demandForecast as $productId => $productForecast)
+									<tr class="demand-forecast-row" data-df-page="{{ intdiv($loop->index, 10) + 1 }}">
 										<td><strong>{{ $productForecast['product_name'] }}</strong></td>
 										<td>{{ $productForecast['current_stock'] }}</td>
 										<td>{{ number_format($productForecast['forecasted_demand'], 1) }}/month</td>
@@ -611,6 +522,45 @@
 							</tbody>
 						</table>
 					</div>
+					<div id="demandForecastPagination" style="display: none; align-items: center; justify-content: center; gap: 14px; margin-top: 14px;">
+						<button type="button" id="dfPrevBtn" class="btn-action ghost" style="padding: 6px 14px; font-size: 0.85rem;">‹ Prev</button>
+						<span id="dfPageIndicator" style="color: var(--color-text-muted); font-size: 0.85rem;"></span>
+						<button type="button" id="dfNextBtn" class="btn-action ghost" style="padding: 6px 14px; font-size: 0.85rem;">Next ›</button>
+					</div>
+					<script>
+						(function () {
+							var rows = Array.from(document.querySelectorAll('#demandForecastTable .demand-forecast-row'));
+							if (!rows.length) return;
+
+							var totalPages = Math.max.apply(null, rows.map(function (r) { return parseInt(r.dataset.dfPage, 10); }));
+							var pagination = document.getElementById('demandForecastPagination');
+							var indicator = document.getElementById('dfPageIndicator');
+							var prevBtn = document.getElementById('dfPrevBtn');
+							var nextBtn = document.getElementById('dfNextBtn');
+							var currentPage = 1;
+
+							if (totalPages <= 1) return;
+							pagination.style.display = 'flex';
+
+							function render() {
+								rows.forEach(function (row) {
+									row.style.display = (parseInt(row.dataset.dfPage, 10) === currentPage) ? '' : 'none';
+								});
+								indicator.textContent = 'Page ' + currentPage + ' of ' + totalPages;
+								prevBtn.disabled = currentPage === 1;
+								nextBtn.disabled = currentPage === totalPages;
+							}
+
+							prevBtn.addEventListener('click', function () {
+								if (currentPage > 1) { currentPage--; render(); }
+							});
+							nextBtn.addEventListener('click', function () {
+								if (currentPage < totalPages) { currentPage++; render(); }
+							});
+
+							render();
+						})();
+					</script>
 				</div>
 			</div>
 		</div>
@@ -895,5 +845,261 @@
 </script>
 
 @include('components.report-drawer')
+
+{{-- Model Accuracy Metrics (MAE / RMSE / MAPE / MASE).
+     Moved out of the page flow into a modal: these are diagnostic statistics
+     rather than day-to-day figures, so they belong behind a deliberate click.
+     Uses the shared .modal-overlay / .modal-card pair so it matches the
+     suppliers, inventory and account-management modals. --}}
+@if(isset($forecastAccuracy) && $forecastAccuracy['products_analyzed'] > 0)
+	@php
+		$maseTitle = $forecastAccuracy['mase'] !== null
+			? ($forecastAccuracy['mase'] < 1 ? 'Beats a naive forecast' : 'Worse than a naive forecast')
+			: 'Not enough data to compute';
+		$methodologyTitle = 'Based on ' . $forecastAccuracy['products_analyzed'] . ' product' . ($forecastAccuracy['products_analyzed'] === 1 ? '' : 's') . ' with enough sales history. Each is evaluated by holding out its most recent month of sales and forecasting it from the prior months.';
+		$statusBadgeClass = match($forecastAccuracy['status']) {
+			'Excellent', 'Good' => 'badge-success',
+			'Fair' => 'badge-warning',
+			default => 'badge-danger',
+		};
+	@endphp
+	<div id="accuracyMetricsModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true"
+		aria-labelledby="accuracyMetricsModalTitle">
+		<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 640px;">
+			<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+				<h5 id="accuracyMetricsModalTitle" style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">
+					📐 Model Accuracy Metrics
+					<span title="{{ $methodologyTitle }}" style="cursor: help; font-size: 0.9rem; color: var(--color-text-muted);">&#9432;</span>
+				</h5>
+				<button type="button" data-modal-close aria-label="Close"
+					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			</div>
+			<div style="padding: 24px 28px;">
+				<div class="mb-3">
+					<span style="font-size: 1.3rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['accuracy_percentage'], 1) }}% Overall Accuracy</span>
+					<span class="badge {{ $statusBadgeClass }}" style="margin-left: 8px;">{{ $forecastAccuracy['status'] }}</span>
+				</div>
+				<div class="row">
+					<div class="col-6 col-md-3 mb-3">
+						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
+							MAE <span title="Average error, in units" style="cursor: help;">&#9432;</span>
+						</div>
+						<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['mae'], 2) }}</div>
+					</div>
+					<div class="col-6 col-md-3 mb-3">
+						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
+							RMSE <span title="Penalizes large misses more" style="cursor: help;">&#9432;</span>
+						</div>
+						<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['rmse'], 2) }}</div>
+					</div>
+					<div class="col-6 col-md-3 mb-3">
+						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
+							MAPE <span title="Average error, as % of actual" style="cursor: help;">&#9432;</span>
+						</div>
+						<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['mape'], 2) }}%</div>
+					</div>
+					<div class="col-6 col-md-3 mb-3">
+						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
+							MASE <span title="{{ $maseTitle }}" style="cursor: help;">&#9432;</span>
+						</div>
+						<div class="{{ $forecastAccuracy['mase'] !== null ? ($forecastAccuracy['mase'] < 1 ? 'growth-positive' : 'growth-negative') : '' }}"
+							style="font-size: 1.4rem; font-weight: 700;">
+							{{ $forecastAccuracy['mase'] !== null ? number_format($forecastAccuracy['mase'], 2) : 'N/A' }}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+@endif
+
+{{-- Automated Restocking Recommendations --}}
+@if(isset($restockingRecommendations))
+	<div id="restockingModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true"
+		aria-labelledby="restockingModalTitle">
+		<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 560px;">
+			<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+				<h5 id="restockingModalTitle" style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">
+					🚨 Automated Restocking Recommendations
+				</h5>
+				<button type="button" data-modal-close aria-label="Close"
+					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			</div>
+			<div style="padding: 24px 28px;">
+				@if(count($restockingRecommendations['urgent_restock']) > 0)
+					<div class="alert alert-danger">
+						<h6><strong>🔴 Urgent Restock Required
+								({{ count($restockingRecommendations['urgent_restock']) }} items)</strong></h6>
+						@foreach(array_slice($restockingRecommendations['urgent_restock'], 0, 3) as $item)
+							<div class="d-flex justify-content-between">
+								<span>{{ $item['product_name'] }}</span>
+								<span class="badge badge-danger">{{ $item['current_stock'] }} left</span>
+							</div>
+						@endforeach
+					</div>
+				@endif
+
+				@if(count($restockingRecommendations['monitor_closely']) > 0)
+					<div class="alert alert-warning">
+						<h6><strong>🟡 Monitor Closely
+								({{ count($restockingRecommendations['monitor_closely']) }} items)</strong></h6>
+						@foreach(array_slice($restockingRecommendations['monitor_closely'], 0, 3) as $item)
+							<div class="d-flex justify-content-between">
+								<span>{{ $item['product_name'] }}</span>
+								<span class="badge badge-warning">{{ $item['current_stock'] }} stock</span>
+							</div>
+						@endforeach
+					</div>
+				@endif
+			</div>
+		</div>
+	</div>
+@endif
+
+{{-- Seasonal Pattern Analysis + SARIMA Model Parameters.
+     Both stay behind the same isset($seasonalityAnalysis) gate they had when
+     they were page cards, so neither appears in a state it did not before. --}}
+@if(isset($seasonalityAnalysis))
+	<div id="seasonalityModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true"
+		aria-labelledby="seasonalityModalTitle">
+		<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 560px;">
+			<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+				<h5 id="seasonalityModalTitle" style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">
+					📅 Seasonal Pattern Analysis
+				</h5>
+				<button type="button" data-modal-close aria-label="Close"
+					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			</div>
+			<div style="padding: 24px 28px;">
+				@php
+					// Does the historical peak/low pattern actually recur in the
+					// real 12-month SARIMA forecast? Maps each forecasted month
+					// to its calendar-month code (e.g. '07' for July) so a
+					// historically-peak month can be checked against its next
+					// real occurrence. Badge color reflects the result
+					// (confirmed vs. not) without needing explanatory text per
+					// month - green/red stays "success"/"secondary" when there's
+					// no upcoming occurrence to check yet.
+					$upcomingByMonthCode = [];
+					foreach (($forecast['predicted'] ?? []) as $fMonth => $fPrediction) {
+						$code = \Carbon\Carbon::parse($fMonth)->format('m');
+						if (!isset($upcomingByMonthCode[$code])) {
+							$upcomingByMonthCode[$code] = ['month' => $fMonth, 'prediction' => $fPrediction];
+						}
+					}
+
+					$seasonalRecentHistory = array_filter(array_slice($forecast['historical'] ?? [], -6));
+					$seasonalRecentAverage = count($seasonalRecentHistory) > 0 ? array_sum($seasonalRecentHistory) / count($seasonalRecentHistory) : null;
+
+					$seasonalBadgeClass = function ($month, bool $isPeak) use ($upcomingByMonthCode, $seasonalRecentAverage) {
+						if (!$seasonalRecentAverage || !isset($upcomingByMonthCode[$month])) {
+							return $isPeak ? 'badge-success' : 'badge-secondary';
+						}
+						$dev = $upcomingByMonthCode[$month]['prediction'] - $seasonalRecentAverage;
+						$confirmed = $isPeak ? $dev > 0 : $dev < 0;
+						return $confirmed ? ($isPeak ? 'badge-success' : 'badge-secondary') : 'badge-warning';
+					};
+				@endphp
+				<div class="mb-3">
+					<h6>Peak Sales Months:</h6>
+					@foreach($seasonalityAnalysis['peak_months'] as $month)
+						<span class="badge {{ $seasonalBadgeClass($month, true) }} mr-1">{{ DateTime::createFromFormat('!m', $month)->format('M') }}</span>
+					@endforeach
+				</div>
+				<div class="mb-3">
+					<h6>Low Sales Months:</h6>
+					@foreach($seasonalityAnalysis['low_months'] as $month)
+						<span class="badge {{ $seasonalBadgeClass($month, false) }} mr-1">{{ DateTime::createFromFormat('!m', $month)->format('M') }}</span>
+					@endforeach
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="modelParamsModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true"
+		aria-labelledby="modelParamsModalTitle">
+		<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 560px;">
+			<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+				<h5 id="modelParamsModalTitle" style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">
+					⚙️ SARIMA Model Parameters
+				</h5>
+				<button type="button" data-modal-close aria-label="Close"
+					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			</div>
+			<div style="padding: 24px 28px;">
+				@if(isset($forecast['model_parameters']))
+					<small><strong>AR Order (p):</strong> {{ $forecast['model_parameters']['p'] }}</small><br>
+					<small><strong>Differencing (d):</strong> {{ $forecast['model_parameters']['d'] }}</small><br>
+					<small><strong>MA Order (q):</strong> {{ $forecast['model_parameters']['q'] }}</small><br>
+					<small><strong>Seasonal AR (P):</strong> {{ $forecast['model_parameters']['P'] }}</small><br>
+					<small><strong>Seasonal Diff (D):</strong> {{ $forecast['model_parameters']['D'] }}</small><br>
+					<small><strong>Seasonal MA (Q):</strong> {{ $forecast['model_parameters']['Q'] }}</small>
+					<div class="mt-2">
+						<small><strong>Seasonal Period (s):</strong> {{ $forecast['model_parameters']['s'] }} months</small><br>
+						<small><strong>Months Forecasted:</strong> {{ count($forecast['predicted']) }}</small>
+					</div>
+				@endif
+			</div>
+		</div>
+	</div>
+@endif
+
+{{-- One delegated handler for every modal on this page, rather than a copy of
+     the same open/close wiring per card. Triggers declare `data-modal-open`,
+     close buttons `data-modal-close`. --}}
+<script>
+	(function () {
+		let lastTrigger = null;
+
+		function openModal(id, trigger) {
+			const modal = document.getElementById(id);
+			if (!modal) return;
+			lastTrigger = trigger || null;
+			modal.style.display = 'flex';
+			const closeBtn = modal.querySelector('[data-modal-close]');
+			if (closeBtn) closeBtn.focus();
+		}
+
+		function closeModal(modal) {
+			modal.style.display = 'none';
+			// Return focus to whatever opened it, so keyboard users are not
+			// dumped back at the top of the document.
+			if (lastTrigger) lastTrigger.focus();
+			lastTrigger = null;
+		}
+
+		document.addEventListener('click', function (e) {
+			const trigger = e.target.closest('[data-modal-open]');
+			if (trigger) {
+				e.preventDefault();
+				openModal(trigger.getAttribute('data-modal-open'), trigger);
+				return;
+			}
+
+			const closeBtn = e.target.closest('[data-modal-close]');
+			if (closeBtn) {
+				const modal = closeBtn.closest('.modal-overlay');
+				if (modal) closeModal(modal);
+				return;
+			}
+
+			// Backdrop only — a click inside the card must not close it. Scoped
+			// to this page's modals so it cannot interfere with other overlays.
+			if (e.target.matches('#accuracyMetricsModal, #restockingModal, #seasonalityModal, #modelParamsModal')) {
+				closeModal(e.target);
+			}
+		});
+
+		document.addEventListener('keydown', function (e) {
+			if (e.key !== 'Escape') return;
+			document
+				.querySelectorAll('#accuracyMetricsModal, #restockingModal, #seasonalityModal, #modelParamsModal')
+				.forEach(function (modal) {
+					if (modal.style.display === 'flex') closeModal(modal);
+				});
+		});
+	})();
+</script>
 
 @endsection

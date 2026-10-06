@@ -23,7 +23,17 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
-            return redirect()->intended('/');
+
+            // Login is a full-page POST, so an overlay shown on submit dies at
+            // the document swap. Flashing a marker lets the destination page
+            // play the splash instead.
+            //
+            // Always the dashboard, not intended(): a session that times out
+            // (or a laptop that sleeps) while someone's on, say, /inventory
+            // redirects them to /login, which stores that as the "intended"
+            // URL - logging back in would otherwise drop them right back
+            // where they were instead of the dashboard.
+            return redirect('/')->with('justLoggedIn', true);
         }
 
         return back()->withErrors([

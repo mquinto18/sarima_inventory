@@ -214,7 +214,6 @@
 											data-lead_time_days="{{ $supplier->lead_time_days }}"
 											data-active="{{ $supplier->active ? 1 : 0 }}">Edit</button>
 										<button type="button" role="menuitem" class="row-actions__item link-product-btn" data-supplier-id="{{ $supplier->id }}">Link Product</button>
-										<button type="button" role="menuitem" class="row-actions__item row-actions__item--danger delete-supplier-btn" data-id="{{ $supplier->id }}" data-name="{{ $supplier->name }}">Delete</button>
 									</div>
 								</div>
 							</td>
@@ -424,7 +423,7 @@
 			<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">Link Product to Supplier</h5>
 			<button type="button" id="closeLinkProductModal" style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
 		</div>
-		<form id="linkProductForm" method="POST" action="{{ route('suppliers.link-product') }}">
+		<form id="linkProductForm" method="POST" action="{{ route('suppliers.link-products') }}">
 			@csrf
 			<div style="padding: 24px 28px;">
 				<div style="margin-bottom: 18px;">
@@ -442,25 +441,25 @@
 					</div>
 				</div>
 				<div style="margin-bottom: 18px;">
-					<label for="linkProductId" style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Product</label>
-					<div class="form-input-group">
-						<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<rect x="3" y="7" width="18" height="13" rx="2" /><path d="M16 3v4M8 3v4" />
-						</svg>
-						<select name="product_id" id="linkProductId" required>
-							<option value="">Select Product</option>
-							@foreach($products as $product)
-								<option value="{{ $product->id }}">{{ $product->name }}</option>
-							@endforeach
-						</select>
+					<label style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Products</label>
+					<input type="text" id="linkProductFilter" placeholder="Type to filter products..."
+						style="width: 100%; box-sizing: border-box; padding: 8px 10px; margin-bottom: 8px; border-radius: var(--radius-sm); border: 1.5px solid #e5e7eb;">
+					<div id="linkProductList" style="max-height: 240px; overflow-y: auto; border: 1.5px solid #e5e7eb; border-radius: var(--radius-sm); padding: 4px 10px;">
+						@foreach($products as $product)
+							<div class="link-product-row" data-name="{{ strtolower($product->name) }}"
+								data-linked-suppliers="{{ $product->suppliers->pluck('id')->implode(',') }}"
+								style="display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0f0f0;">
+								<input type="checkbox" class="link-product-checkbox" data-id="{{ $product->id }}" style="width: 16px; height: 16px; flex-shrink: 0;">
+								<span style="flex: 1; min-width: 0;">{{ $product->name }}</span>
+								<div class="form-input-group" style="width: 130px; flex-shrink: 0;">
+									<span class="form-input-icon currency-icon">₱</span>
+									<input type="number" step="0.01" min="0" class="link-product-cost" data-id="{{ $product->id }}"
+										placeholder="Cost" disabled style="width: 100%;">
+								</div>
+							</div>
+						@endforeach
 					</div>
-				</div>
-				<div style="margin-bottom: 18px;">
-					<label for="linkCostPrice" style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Cost Price</label>
-					<div class="form-input-group">
-						<span class="form-input-icon currency-icon">₱</span>
-						<input type="number" step="0.01" min="0" name="cost_price" id="linkCostPrice" required>
-					</div>
+					<div id="linkProductNoMatch" style="display: none; color: var(--color-text-muted); text-align: center; padding: 10px;">No products match.</div>
 				</div>
 				<div style="margin-bottom: 18px;">
 					<label for="linkLeadTimeDays" style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Lead Time Override (days)</label>
@@ -486,8 +485,42 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+	// Combines the name filter with "already linked to the selected
+	// supplier" so a product can't be checked (or even seen) twice for the
+	// same supplier. Re-run whenever either the search text or the supplier
+	// dropdown changes.
+	function applyLinkProductVisibility() {
+		var q = $('#linkProductFilter').val().trim().toLowerCase();
+		var supplierId = $('#linkSupplierId').val();
+		var anyVisible = false;
+
+		$('.link-product-row').each(function () {
+			var row = $(this);
+			var nameMatches = !q || row.data('name').indexOf(q) !== -1;
+			var linkedSuppliers = (row.attr('data-linked-suppliers') || '').split(',');
+			var alreadyLinked = supplierId !== '' && linkedSuppliers.indexOf(String(supplierId)) !== -1;
+			var visible = nameMatches && !alreadyLinked;
+
+			if (alreadyLinked) {
+				// Never leave a hidden row checked - it would still submit.
+				row.find('.link-product-checkbox').prop('checked', false);
+				row.find('.link-product-cost').val('').prop('disabled', true);
+			}
+
+			row.toggle(visible);
+			if (visible) anyVisible = true;
+		});
+
+		$('#linkProductNoMatch').toggle(!anyVisible);
+	}
+
 	function openLinkModal(supplierId) {
 		$('#linkSupplierId').val(supplierId || '');
+		// Reset any selection left over from a previous time the modal was opened.
+		$('#linkProductFilter').val('');
+		$('.link-product-checkbox').prop('checked', false);
+		$('.link-product-cost').val('').prop('disabled', true);
+		applyLinkProductVisibility();
 		$('#linkProductModal').show();
 	}
 
@@ -641,39 +674,6 @@
 			});
 		});
 
-		// Delete supplier
-		$(document).on('click', '.delete-supplier-btn', function () {
-			var id = $(this).data('id');
-			var name = $(this).data('name');
-			var button = $(this);
-
-			confirmDialog('Are you sure you want to delete "' + name + '"? This cannot be undone.', {
-				title: 'Delete supplier',
-				confirmText: 'Delete'
-			}).then(function (confirmed) {
-				if (!confirmed) return;
-				setButtonLoading(button.get(0), true, 'Deleting...');
-				$.ajax({
-					url: '/suppliers/' + id,
-					type: 'POST',
-					data: { _method: 'DELETE', _token: $('meta[name="csrf-token"]').attr('content') },
-					success: function (response) {
-						if (response.success) {
-							showToast('Supplier deleted successfully!', 'success');
-							setTimeout(function () { location.reload(); }, 1200);
-						} else {
-							setButtonLoading(button.get(0), false);
-							showToast(response.message || 'Could not delete supplier.', 'error');
-						}
-					},
-					error: function (xhr) {
-						setButtonLoading(button.get(0), false);
-						showToast(xhr.responseJSON?.message || 'Could not delete supplier.', 'error');
-					}
-				});
-			});
-		});
-
 		// Link product modal open (from a specific supplier row)
 		$(document).on('click', '.link-product-btn', function () {
 			openLinkModal($(this).data('supplier-id'));
@@ -686,26 +686,70 @@
 			if (e.target.id === 'linkProductModal') $('#linkProductModal').hide();
 		});
 
-		// Link product submit
+		// Link product modal: checking a row enables its cost input; unchecking
+		// clears it (never submit a stale cost for a since-unchecked product).
+		$(document).on('change', '.link-product-checkbox', function () {
+			var cost = $('.link-product-cost[data-id="' + $(this).data('id') + '"]');
+			cost.prop('disabled', !this.checked);
+			if (!this.checked) cost.val('');
+		});
+
+		// Link product modal: client-side filter, same idea as the POS search -
+		// narrows the visible rows only, no server round-trip. Also re-applied
+		// when the supplier changes, since that affects which rows are
+		// already-linked (see applyLinkProductVisibility).
+		$('#linkProductFilter').on('input', applyLinkProductVisibility);
+		$('#linkSupplierId').on('change', applyLinkProductVisibility);
+
+		// Link product submit: build the payload from just the checked rows
+		// (products[id][cost_price]) rather than form.serialize(), since most
+		// of the 64 product rows are never meant to be submitted.
 		$('#linkProductForm').on('submit', function (e) {
 			e.preventDefault();
 			var form = $(this);
 			var submitBtn = form.find('button[type="submit"]').get(0);
+
+			var products = {};
+			var missingCost = false;
+			$('.link-product-checkbox:checked').each(function () {
+				var id = $(this).data('id');
+				var cost = $('.link-product-cost[data-id="' + id + '"]').val();
+				if (cost === '' || cost === null || Number(cost) < 0) {
+					missingCost = true;
+					return false;
+				}
+				products[id] = { cost_price: cost };
+			});
+
+			if ($.isEmptyObject(products)) {
+				showToast('Check at least one product to link.', 'error');
+				return;
+			}
+			if (missingCost) {
+				showToast('Enter a cost price for every checked product.', 'error');
+				return;
+			}
+
 			setButtonLoading(submitBtn, true, 'Linking...');
 			$.ajax({
 				url: form.attr('action'),
 				method: 'POST',
-				data: form.serialize(),
-				success: function () {
+				data: {
+					_token: $('meta[name="csrf-token"]').attr('content'),
+					supplier_id: $('#linkSupplierId').val(),
+					lead_time_days: $('#linkLeadTimeDays').val(),
+					is_primary: $('#linkIsPrimary').is(':checked') ? 1 : 0,
+					products: products
+				},
+				success: function (response) {
 					setButtonLoading(submitBtn, false);
 					$('#linkProductModal').hide();
-					form[0].reset();
-					showToast('Product linked to supplier successfully!', 'success');
+					showToast(response.message || 'Products linked to supplier successfully!', 'success');
 					setTimeout(function () { location.reload(); }, 1200);
 				},
 				error: function (xhr) {
 					setButtonLoading(submitBtn, false);
-					showToast(xhr.responseJSON?.message || 'Could not link product.', 'error');
+					showToast(xhr.responseJSON?.message || 'Could not link products.', 'error');
 				}
 			});
 		});

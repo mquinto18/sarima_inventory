@@ -92,18 +92,33 @@ class SalesController extends Controller
      */
 
     /**
-     * Get monthly sales data for the last 12 months
+     * Get monthly sales data for the last 24 *complete* months.
+     *
+     * 24, not 12, because preprocessSalesData() builds a 24-slot series and
+     * zero-fills whatever this query does not return. At 12 months the SARIMA
+     * model was differencing every real month against a fabricated zero a year
+     * earlier (D=1, s=12), which produced confidence intervals several times
+     * wider than the forecast itself, with negative lower bounds.
+     *
+     * Ends at the close of *last* month, not today: the current month is
+     * still accumulating, so including it would hand SARIMAX a final data
+     * point that looks like a sudden demand collapse (e.g. one sale on day 1
+     * of a new month next to full prior months), corrupting every forecast
+     * generated before that month closes.
      */
     public function getMonthlySalesData()
     {
-        $startDate = Carbon::now()->subMonths(11)->startOfMonth();
-        $endDate = Carbon::now()->endOfMonth();
+        $startDate = Carbon::now()->subMonths(24)->startOfMonth();
+        $endDate = Carbon::now()->subMonth()->endOfMonth();
 
         return Sale::select(
             DB::raw('DATE_FORMAT(sale_date, "%Y-%m") as sale_month'),
             DB::raw('SUM(quantity_sold) as total_quantity'),
             DB::raw('SUM(total_amount) as total_revenue'),
-            DB::raw('COUNT(DISTINCT product_id) as unique_products')
+            DB::raw('COUNT(DISTINCT product_id) as unique_products'),
+            // preprocessSalesData() reads sales_count for `transactions` and
+            // `average_order_value`; without it both were silently always 0.
+            DB::raw('COUNT(*) as sales_count')
         )
             ->where('sale_date', '>=', $startDate)
             ->where('sale_date', '<=', $endDate)
@@ -440,8 +455,11 @@ class SalesController extends Controller
     {
         $preprocessed = [];
 
-        // Fill missing months with zero values for complete time series
-        for ($i = 23; $i >= 0; $i--) { // Extended to 24 months for better analysis
+        // Fill missing months with zero values for complete time series.
+        // Starts at $i=24 and stops at $i=1 (last month) - never $i=0 (the
+        // current, still-accumulating month) - to match the complete-months
+        // window getMonthlySalesData() now queries.
+        for ($i = 24; $i >= 1; $i--) {
             $month = Carbon::now()->subMonths($i)->format('Y-m');
             $salesData = $monthlySales->get($month, (object) [
                 'total_quantity' => 0,

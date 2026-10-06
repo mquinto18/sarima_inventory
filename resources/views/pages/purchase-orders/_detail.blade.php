@@ -37,6 +37,52 @@
     </div>
 </div>
 
+@if($purchaseOrder->status === 'draft')
+    <div class="card-panel" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <div style="color: var(--color-text-muted);">This purchase order hasn't been emailed to the supplier yet.</div>
+        <form id="sendToSupplierForm" method="POST" action="{{ route('purchase-orders.send', $purchaseOrder->id) }}">
+            @csrf
+            <button type="submit" class="btn-action edit">Send to Supplier</button>
+        </form>
+    </div>
+@endif
+
+@if(in_array($purchaseOrder->status, ['draft', 'sent', 'confirmed']))
+    <div class="card-panel" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <div style="color: var(--color-text-muted);">
+            Supplier responded by phone or in person, or their email link isn't reachable? Record it manually instead.
+        </div>
+        <div style="display: flex; gap: 10px;">
+            @if($purchaseOrder->status === 'sent')
+                <form id="markConfirmedForm" method="POST" action="{{ route('purchase-orders.mark-confirmed', $purchaseOrder->id) }}">
+                    @csrf
+                    <input type="hidden" name="note" class="mark-confirmed-note">
+                    <button type="submit" class="btn-action approve">Mark as Confirmed</button>
+                </form>
+            @endif
+            <form id="markCancelledForm" method="POST" action="{{ route('purchase-orders.mark-cancelled', $purchaseOrder->id) }}">
+                @csrf
+                <input type="hidden" name="note" class="mark-cancelled-note">
+                <button type="submit" class="btn-action reject">Mark as Cancelled</button>
+            </form>
+        </div>
+    </div>
+@endif
+
+@if($purchaseOrder->confirmation_note || $purchaseOrder->confirmed_at)
+    <div class="card-panel" style="margin-bottom: 24px;">
+        <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 8px; color: var(--color-text);">
+            {{ $purchaseOrder->status === 'cancelled' ? 'Supplier Response — Declined' : 'Supplier Confirmation' }}
+            @if($purchaseOrder->confirmed_at)
+                <span style="color: var(--color-text-muted); font-weight: 400; font-size: 0.9rem;">
+                    &mdash; {{ $purchaseOrder->confirmed_at->format('M d, Y g:i A') }}
+                </span>
+            @endif
+        </div>
+        <div style="color: var(--color-text-muted); white-space: pre-line;">{{ $purchaseOrder->confirmation_note }}</div>
+    </div>
+@endif
+
 @if($purchaseOrder->notes)
     <div class="card-panel" style="margin-bottom: 24px;">
         <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 8px; color: var(--color-text);">Notes</div>
@@ -94,6 +140,7 @@
                         <th>Subtotal</th>
                         @if($canReceive)
                             <th>Receive Now</th>
+                            <th>New Expiry Date</th>
                         @endif
                     </tr>
                 </thead>
@@ -110,18 +157,26 @@
                             @if($canReceive)
                                 <td>
                                     @if($remaining > 0)
-                                        <input type="number" name="items[{{ $item->id }}][quantity_received]"
+                                        <input type="number" class="receive-qty-input" name="items[{{ $item->id }}][quantity_received]"
                                             min="0" max="{{ $remaining }}" value="{{ $remaining }}"
+                                            oninput="var exp=this.closest('tr').querySelector('.receive-expiry-input'); if(exp){ exp.required = (parseInt(this.value || '0', 10) > 0); }"
                                             style="width: 90px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1.5px solid #e5e7eb;">
                                     @else
                                         <span style="color: var(--color-text-muted);">Fully received</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($remaining > 0)
+                                        <input type="date" class="receive-expiry-input" name="items[{{ $item->id }}][expiry_date]"
+                                            data-item-id="{{ $item->id }}" required
+                                            style="padding: 8px 10px; border-radius: var(--radius-sm); border: 1.5px solid #e5e7eb;">
                                     @endif
                                 </td>
                             @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $canReceive ? 7 : 6 }}" style="text-align: center; color: #aaa;">No line items on this purchase order.</td>
+                            <td colspan="{{ $canReceive ? 8 : 6 }}" style="text-align: center; color: #aaa;">No line items on this purchase order.</td>
                         </tr>
                     @endforelse
                 </tbody>

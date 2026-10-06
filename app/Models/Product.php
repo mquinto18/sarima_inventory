@@ -62,7 +62,7 @@ class Product extends Model
     public function suppliers()
     {
         return $this->belongsToMany(Supplier::class, 'product_supplier')
-            ->withPivot(['cost_price', 'lead_time_days', 'is_primary'])
+            ->withPivot(['id', 'cost_price', 'lead_time_days', 'is_primary'])
             ->withTimestamps();
     }
 

@@ -111,18 +111,26 @@ class ProductController extends Controller
     private static function getProductDemandHistory($productId, $months = 6)
     {
         $startDate = Carbon::now()->subMonths($months)->startOfMonth();
-        
+        // Excludes the current, still-accumulating month: every caller of
+        // this method (reorder point, forecasted demand, accuracy scoring)
+        // treats each element as a *complete* month's demand. Without this
+        // cutoff, a single sale on day 1 of a new month creates a tiny
+        // partial-month bucket that looks like a demand collapse next to a
+        // forecast sized for a full month.
+        $endDate = Carbon::now()->startOfMonth();
+
         $monthlySales = Sale::select(
             DB::raw('DATE_FORMAT(sale_date, "%Y-%m") as month'),
             DB::raw('SUM(quantity_sold) as total_demand')
         )
         ->where('product_id', $productId)
         ->where('sale_date', '>=', $startDate)
+        ->where('sale_date', '<', $endDate)
         ->groupBy('month')
         ->orderBy('month')
         ->pluck('total_demand')
         ->toArray();
-        
+
         return array_map('floatval', $monthlySales);
     }
 
@@ -444,6 +452,87 @@ class ProductController extends Controller
     }
 
     /**
+     * Write off expired stock: removes it from inventory via InventoryService
+     * (the only place stock is ever mutated) with a dedicated movement type,
+     * so the ledger reflects that this stock left because it expired rather
+     * than a generic manual adjustment. Shared by this HTTP action (an admin
+     * clicking "Write Off" on the dashboard, with a chosen quantity) and
+     * DisposeExpiredStock (the scheduled command that writes off whatever's
+     * left, unattended, once a product has been expired for a full day).
+     */
+    public static function writeOffExpiredStock(Product $product, int $quantity, ?int $userId, string $notes): Product
+    {
+        return DB::transaction(function () use ($product, $quantity, $userId, $notes) {
+            $product = (new InventoryService())->deductStock(
+                $product,
+                $quantity,
+                'expired_disposal',
+                null,
+                $userId,
+                $notes
+            );
+
+            // The expiry_date describes the batch that was just fully
+            // disposed of - stale once nothing of it is left in stock.
+            // Cleared here (not left for a future receive) so it stops
+            // showing as "Expired" immediately. A partial write-off leaves
+            // it as-is since the remaining units are still that same
+            // expired batch.
+            if ($product->stock === 0) {
+                $product->update(['expiry_date' => null]);
+            }
+
+            return $product;
+        });
+    }
+
+    /**
+     * Restricted to non-staff since it bypasses the staff edit-request/
+     * approval flow that normal product edits go through.
+     */
+    public function disposeExpired(Request $request, $id)
+    {
+        if (Auth::user()->role === 'staff') {
+            abort(403);
+        }
+
+        $product = Product::findOrFail($id);
+
+        $validated = $request->validate([
+            'quantity' => 'required|integer|min:1',
+            'notes' => 'nullable|string|max:255',
+        ]);
+
+        $notes = ($validated['notes'] ?? null) ?: (
+            $product->expiry_date
+                ? "Disposed - expired on {$product->expiry_date->format('Y-m-d')}"
+                : 'Disposed - expired'
+        );
+
+        try {
+            $product = self::writeOffExpiredStock($product, $validated['quantity'], Auth::id(), $notes);
+        } catch (InsufficientStockException $e) {
+            $message = "Cannot dispose {$e->requested} unit(s): only {$e->available} in stock.";
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Expired stock written off successfully',
+                'product' => $product,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Expired stock written off successfully!');
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
@@ -535,6 +624,12 @@ class ProductController extends Controller
             'reorder_level' => 'required|integer|min:0',
             'expiry_date' => 'nullable|date',
         ]);
+
+        // Categories can now be typed in freely from the Add Product form, so
+        // trim here rather than storing " Medicine" as a separate category.
+        if (array_key_exists('category', $validated)) {
+            $validated['category'] = trim((string) $validated['category']) ?: null;
+        }
 
         // Auto-calculate status based on stock level
         $validated['status'] = Product::statusForStock($validated['stock']);

@@ -30,6 +30,11 @@
         </main>
         @include('components.ui-kit')
 
+        {{-- Only on the first page after a successful sign-in. --}}
+        @if (session('justLoggedIn'))
+            @include('components.login-splash')
+        @endif
+
         {{-- Flashed messages surface as a toast rather than an inline banner,
              so every page reports the result of a redirect the same way and no
              page has to render its own banner markup. @json is safe in script

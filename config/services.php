@@ -16,6 +16,12 @@ return [
 
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
+        'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
+        'inbound_webhook_token' => env('POSTMARK_INBOUND_WEBHOOK_TOKEN'),
+        // Comma-separated override for Postmark's published webhook source
+        // IPs, in case they add/change IPs before this app's list is updated.
+        // See PostmarkInboundController::POSTMARK_WEBHOOK_IPS for the default.
+        'webhook_ips' => env('POSTMARK_WEBHOOK_IPS'),
     ],
 
     'resend' => [

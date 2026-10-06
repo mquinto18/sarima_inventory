@@ -415,6 +415,25 @@ html {
     background: var(--color-primary-soft);
 }
 
+/* Several of these buttons are <a href="javascript:void(0)"> elements, not
+   <button>s (e.g. "+ Add Supplier"). The browser's own default link-state
+   colors (:link/:visited) have higher CSS specificity than a plain class
+   selector, so they can silently win over the white text these buttons are
+   meant to have - most visibly once a link with that exact href has been
+   "visited" (several buttons across the app reuse the identical
+   href="javascript:void(0)", so this isn't limited to the one actually
+   clicked), making the label low-contrast against its own colored/gradient
+   background. .ghost is intentionally excluded: it uses colored text on a
+   light background by design, not white. */
+.btn-action:not(.ghost):link,
+.btn-action:not(.ghost):visited,
+.btn-action:not(.ghost):hover,
+.btn-action:not(.ghost):active,
+.btn-action:not(.ghost):focus {
+    color: #fff;
+    text-decoration: none;
+}
+
 .user-avatar {
     width: 40px;
     height: 40px;

@@ -258,22 +258,32 @@
                                         <th>Stock</th>
                                         <th>Expiry Date</th>
                                         <th>Status</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach($expiringProducts as $product)
                                         @php
                                             $daysUntilExpiry = now()->startOfDay()->diffInDays($product->expiry_date, false);
+                                            $isExpired = $daysUntilExpiry < 0;
                                         @endphp
                                         <tr>
                                             <td>{{ $product->name }}</td>
                                             <td>{{ $product->stock }}</td>
                                             <td>{{ $product->expiry_date->format('M d, Y') }}</td>
                                             <td>
-                                                @if($daysUntilExpiry < 0)
+                                                @if($isExpired)
                                                     <span class="status-badge critical">Expired</span>
                                                 @else
                                                     <span class="status-badge low">Expires in {{ $daysUntilExpiry }} day{{ $daysUntilExpiry === 1 ? '' : 's' }}</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($isExpired && $product->stock > 0)
+                                                    <div style="display:flex; gap:6px; align-items:center;">
+                                                        <input type="number" class="dispose-qty-input" min="1" max="{{ $product->stock }}" value="{{ $product->stock }}" style="width:64px; padding:6px 8px; border-radius:var(--radius-sm); border:1.5px solid #e5e7eb;">
+                                                        <button type="button" class="btn-action reject dispose-expired-btn" data-id="{{ $product->id }}" data-name="{{ $product->name }}">Write Off</button>
+                                                    </div>
                                                 @endif
                                             </td>
                                         </tr>
@@ -415,4 +425,53 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('click', function (e) {
+        var button = e.target.closest('.dispose-expired-btn');
+        if (!button) return;
+
+        var name = button.dataset.name;
+        var id = button.dataset.id;
+        var input = button.parentElement.querySelector('.dispose-qty-input');
+        var quantity = parseInt(input.value, 10);
+
+        if (!quantity || quantity < 1) {
+            showToast('Enter a valid quantity to write off.', 'error');
+            return;
+        }
+
+        confirmDialog('Write off ' + quantity + ' unit(s) of "' + name + '" as expired? Stock will be removed immediately.', {
+            title: 'Write off expired stock',
+            confirmText: 'Write Off'
+        }).then(function (confirmed) {
+            if (!confirmed) return;
+            setButtonLoading(button, true, 'Writing off...');
+
+            fetch('/products/' + id + '/dispose-expired', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ quantity: quantity })
+            })
+                .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+                .then(function (result) {
+                    if (result.data.success) {
+                        showToast(result.data.message || 'Expired stock written off successfully!', 'success');
+                        setTimeout(function () { location.reload(); }, 1200);
+                    } else {
+                        setButtonLoading(button, false);
+                        showToast(result.data.message || 'Could not write off this stock.', 'error');
+                    }
+                })
+                .catch(function () {
+                    setButtonLoading(button, false);
+                    showToast('Could not write off this stock.', 'error');
+                });
+        });
+    });
+</script>
 @endsection

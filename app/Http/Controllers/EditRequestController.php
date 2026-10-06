@@ -38,12 +38,21 @@ class EditRequestController extends Controller
 
         $pendingEditRequests = \App\Models\EditRequest::with('user')->where('status', 'pending')->orderBy('created_at', 'desc')->get();
         $pendingApprovalCount = $pendingEditRequests->count();
-        $notificationCount = $pendingApprovalCount; // No reorder notifications on approval page
+
+        // The notification bell is part of the shared header, so it must show
+        // the same thing here as on every other page. This page used to pass
+        // only the approval count, which silently dropped the reorder section
+        // from the dropdown and made the badge disagree with the rest of the app.
+        $reorderCount = ProductController::getReorderCount();
+        $reorderNotifications = ProductController::getReorderNotifications();
+
         return view('pages.new_approval_requests', [
             'editRequests' => $allRequests,
             'pendingEditRequests' => $pendingEditRequests,
             'pendingApprovalCount' => $pendingApprovalCount,
-            'notificationCount' => $notificationCount
+            'reorderCount' => $reorderCount,
+            'reorderNotifications' => $reorderNotifications,
+            'notificationCount' => $pendingApprovalCount + $reorderCount,
         ]);
     }
 

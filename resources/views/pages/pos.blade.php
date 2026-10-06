@@ -21,6 +21,63 @@
 		top: 24px;
 	}
 
+	/* Same pill treatment as the Transaction Logs tabs, so "filter" looks the
+	   same wherever it appears. */
+	.pos-categories {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 16px;
+	}
+
+	.pos-cat-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		background: var(--color-surface);
+		color: var(--color-text-muted);
+		font: inherit;
+		font-size: 0.88rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color var(--dur-fast) var(--ease-out),
+			background var(--dur-fast) var(--ease-out),
+			color var(--dur-fast) var(--ease-out);
+	}
+
+	.pos-cat-chip:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.pos-cat-chip:focus-visible {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 2px;
+	}
+
+	.pos-cat-chip.is-active {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: #fff;
+	}
+
+	.pos-cat-chip__count {
+		font-size: 0.78rem;
+		font-weight: 700;
+		padding: 1px 7px;
+		border-radius: var(--radius-pill);
+		background: var(--color-neutral-bg);
+		color: var(--color-text-muted);
+	}
+
+	.pos-cat-chip.is-active .pos-cat-chip__count {
+		background: rgba(255, 255, 255, 0.24);
+		color: #fff;
+	}
+
 	.pos-results-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -45,9 +102,15 @@
 		transform: translateY(-1px);
 	}
 
-	.pos-product-card.out-of-stock {
+	.pos-product-card.out-of-stock,
+	.pos-product-card.expired {
 		opacity: 0.55;
 		cursor: not-allowed;
+	}
+
+	.pos-product-expired-label {
+		color: var(--color-danger);
+		font-weight: 700;
 	}
 
 	.pos-product-name {
@@ -199,6 +262,30 @@
 				</svg>
 				<input type="text" id="posSearchInput" placeholder="Scan barcode or search by name / SKU..." autocomplete="off" autofocus>
 			</div>
+
+			@php
+				// Built from the data, not a hardcoded list, so a category added
+				// through Add Product shows up here automatically. The
+				// "Uncategorised" bucket matters because products.category is
+				// nullable — without it such a product would have no chip and
+				// would be unreachable from the grid.
+				$posCategories = $products
+					->groupBy(fn ($p) => trim((string) $p->category) ?: 'Uncategorised')
+					->map->count()
+					->sortKeys();
+			@endphp
+
+			<div class="pos-categories" id="posCategories" role="group" aria-label="Filter products by category">
+				<button type="button" class="pos-cat-chip is-active" data-category="" aria-pressed="true">
+					All <span class="pos-cat-chip__count">{{ $products->count() }}</span>
+				</button>
+				@foreach($posCategories as $categoryName => $categoryCount)
+					<button type="button" class="pos-cat-chip" data-category="{{ $categoryName }}" aria-pressed="false">
+						{{ $categoryName }} <span class="pos-cat-chip__count">{{ $categoryCount }}</span>
+					</button>
+				@endforeach
+			</div>
+
 			<div id="posResults" class="pos-results-grid"></div>
 		</div>
 
@@ -283,22 +370,29 @@
 			$results.empty();
 
 			if (!products.length) {
-				$results.append('<div class="pos-empty-state">No products found.</div>');
+				$results.append('<div class="pos-empty-state">' +
+					(activeCategory ? 'No products in ' + escapeHtml(activeCategory) + '.' : 'No products found.') +
+					'</div>');
 				return;
 			}
 
 			products.forEach(function (p) {
 				var outOfStock = Number(p.stock) <= 0;
+				var expired = !!p.expiry_date && new Date(p.expiry_date) < new Date();
+				var blocked = outOfStock || expired;
+				var metaLine = p.sku ? 'SKU: ' + escapeHtml(p.sku) + ' &middot; ' : '';
+				metaLine += expired ? '<span class="pos-product-expired-label">EXPIRED</span>' : 'Stock: ' + p.stock;
+
 				var $card = $('<div>')
-					.addClass('pos-product-card' + (outOfStock ? ' out-of-stock' : ''))
+					.addClass('pos-product-card' + (outOfStock ? ' out-of-stock' : '') + (expired ? ' expired' : ''))
 					.attr('data-id', p.id)
 					.html(
 						'<div class="pos-product-name">' + escapeHtml(p.name) + '</div>' +
-						'<div class="pos-product-meta">' + (p.sku ? 'SKU: ' + escapeHtml(p.sku) + ' &middot; ' : '') + 'Stock: ' + p.stock + '</div>' +
+						'<div class="pos-product-meta">' + metaLine + '</div>' +
 						'<div class="pos-product-price">' + peso(p.price) + '</div>'
 					);
 
-				if (!outOfStock) {
+				if (!blocked) {
 					$card.on('click', function () {
 						addToCart(p);
 					});
@@ -312,9 +406,43 @@
 			return $('<div>').text(str == null ? '' : str).html();
 		}
 
-		function showInitialProducts() {
-			renderResults(allProducts.slice(0, 20));
+		// null = the "All" chip. The whole catalogue is already embedded in this
+		// page, so switching category needs no request.
+		var activeCategory = null;
+
+		function categoryOf(product) {
+			var c = (product.category || '').trim();
+			return c === '' ? 'Uncategorised' : c;
 		}
+
+		function productsInActiveCategory() {
+			if (activeCategory === null) return allProducts;
+			return allProducts.filter(function (p) { return categoryOf(p) === activeCategory; });
+		}
+
+		function showInitialProducts() {
+			renderResults(productsInActiveCategory());
+		}
+
+		function setActiveCategory(category) {
+			activeCategory = category;
+
+			$('#posCategories .pos-cat-chip').each(function () {
+				var mine = $(this).data('category') === undefined ? '' : String($(this).data('category'));
+				var on = (category === null && mine === '') || mine === category;
+				$(this).toggleClass('is-active', on).attr('aria-pressed', on ? 'true' : 'false');
+			});
+		}
+
+		$('#posCategories').on('click', '.pos-cat-chip', function () {
+			var value = String($(this).data('category') || '');
+			setActiveCategory(value === '' ? null : value);
+
+			// Browsing a category is a fresh start; a stale query would other-
+			// wise keep the grid showing search results.
+			$('#posSearchInput').val('');
+			showInitialProducts();
+		});
 
 		function performLookup(query, onSingleExactMatch) {
 			$.ajax({
@@ -349,6 +477,10 @@
 				return;
 			}
 
+			// Searching covers the whole catalogue: a scanned or typed item must
+			// never be hidden because a category chip was left selected.
+			setActiveCategory(null);
+
 			searchTimer = setTimeout(function () {
 				performLookup(query, null);
 			}, 250);
@@ -378,6 +510,13 @@
 
 		function addToCart(product) {
 			var stock = Number(product.stock);
+			var expired = !!product.expiry_date && new Date(product.expiry_date) < new Date();
+
+			if (expired) {
+				showToast('"' + product.name + '" is expired and cannot be sold.', 'error');
+				return;
+			}
+
 			var existing = cart.find(function (item) { return item.product_id === product.id; });
 
 			if (existing) {
