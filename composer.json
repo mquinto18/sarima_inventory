@@ -10,6 +10,7 @@
         "barryvdh/laravel-dompdf": "^3.1",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
+        "resend/resend-php": "^1.16",
         "symfony/postmark-mailer": "^7.4"
     },
     "require-dev": {
