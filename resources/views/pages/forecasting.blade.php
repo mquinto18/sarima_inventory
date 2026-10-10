@@ -314,7 +314,7 @@
 										@else
 											<td><strong>₱{{ number_format($revenue, 2) }}</strong></td>
 										@endif
-										<td>{{ number_format($salesData) }} items</td>
+										<td>{{ number_format($salesData) }} units</td>
 										<td>
 											@if($growth !== null)
 												@if($growth > 0)
@@ -366,7 +366,7 @@
 								<tr>
 									<th>Total</th>
 									<th><strong>₱{{ number_format($totalRevenue, 2) }}</strong></th>
-									<th>{{ number_format($totalQuantity) }} items</th>
+									<th>{{ number_format($totalQuantity) }} units</th>
 									<th colspan="2">
 										<span class="text-muted">
 											Avg:
