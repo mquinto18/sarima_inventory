@@ -9,7 +9,7 @@
         default => 'status-badge',
     };
     $statusLabel = ucwords(str_replace('_', ' ', $purchaseOrder->status));
-    $canReceive = in_array($purchaseOrder->status, ['sent', 'confirmed', 'partially_received']);
+    $canReceive = in_array($purchaseOrder->status, ['confirmed', 'partially_received']);
 @endphp
 
 <div style="margin-bottom: 20px;">

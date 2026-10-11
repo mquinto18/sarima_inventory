@@ -217,6 +217,22 @@ class PurchaseOrderController extends Controller
     {
         $this->denyStaff();
 
+        // The frontend already hides this form outside these statuses, but
+        // that alone isn't enforcement - without this, stock could be
+        // credited against a PO the supplier never confirmed (or even one
+        // still sitting as a draft) by hitting this endpoint directly.
+        $currentStatus = PurchaseOrder::where('id', $id)->value('status');
+
+        if (!in_array($currentStatus, ['confirmed', 'partially_received'])) {
+            $message = 'Only a confirmed purchase order can have deliveries received against it.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
         $validated = $request->validate([
             'items' => 'array',
             'items.*.quantity_received' => 'nullable|integer|min:0',
