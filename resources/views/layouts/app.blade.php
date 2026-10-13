@@ -17,6 +17,14 @@
 
 <body>
     @if (!Request::is('login'))
+        {{-- Rendered first, before any dashboard markup, so it paints before
+             the page underneath regardless of how slow the rest of the page
+             is to parse/render - it's position:fixed, so where it sits in the
+             DOM doesn't change where it appears, only how early it paints. --}}
+        @if (session('justLoggedIn'))
+            @include('components.login-splash')
+        @endif
+
         <script>
             if (localStorage.getItem('sidebarCollapsed') === 'true') {
                 document.body.classList.add('sidebar-collapsed');
@@ -29,11 +37,6 @@
             @yield('content')
         </main>
         @include('components.ui-kit')
-
-        {{-- Only on the first page after a successful sign-in. --}}
-        @if (session('justLoggedIn'))
-            @include('components.login-splash')
-        @endif
 
         {{-- Flashed messages surface as a toast rather than an inline banner,
              so every page reports the result of a redirect the same way and no
