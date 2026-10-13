@@ -63,6 +63,7 @@
 				<option value="cancelled">Cancelled</option>
 			</select>
 		</div>
+		<button type="button" onclick="applyPoFilters()" class="btn-action edit" style="padding: 10px 18px;">Filter</button>
 	</div>
 
 	<div class="data-table-container">
@@ -123,6 +124,11 @@
 				</tbody>
 			</table>
 		</div>
+		<div id="poPagination" style="display: none; align-items: center; justify-content: center; gap: 14px; margin: 18px 0;">
+			<button type="button" id="poPrevBtn" class="btn-action ghost" style="padding: 6px 14px; font-size: 0.85rem;">‹ Prev</button>
+			<span id="poPageIndicator" style="color: var(--color-text-muted); font-size: 0.85rem;"></span>
+			<button type="button" id="poNextBtn" class="btn-action ghost" style="padding: 6px 14px; font-size: 0.85rem;">Next ›</button>
+		</div>
 	</div>
 </div>
 
@@ -141,14 +147,64 @@
 </div>
 
 <script>
-	function applyPoFilters() {
-		var statusFilter = document.getElementById('filterStatus').value;
-		var rows = document.querySelectorAll('#purchaseOrdersTable tbody tr');
-		rows.forEach(function (row) {
-			if (!row.dataset.status) return;
-			row.style.display = (!statusFilter || row.dataset.status === statusFilter) ? '' : 'none';
+	(function () {
+		var PAGE_SIZE = 10;
+		var currentPage = 1;
+
+		function allRows() {
+			return Array.from(document.querySelectorAll('#purchaseOrdersTable tbody tr'));
+		}
+
+		// Recomputed from the live DOM each time rather than cached, so a
+		// status change always re-derives "matching" from the current
+		// filter instead of a possibly stale list.
+		function matchingRows() {
+			var statusFilter = document.getElementById('filterStatus').value;
+			return allRows().filter(function (row) {
+				return row.dataset.status && (!statusFilter || row.dataset.status === statusFilter);
+			});
+		}
+
+		function render() {
+			var matching = matchingRows();
+			var totalPages = Math.max(1, Math.ceil(matching.length / PAGE_SIZE));
+			if (currentPage > totalPages) currentPage = totalPages;
+
+			allRows().forEach(function (row) { row.style.display = 'none'; });
+			matching.forEach(function (row, index) {
+				var page = Math.floor(index / PAGE_SIZE) + 1;
+				if (page === currentPage) row.style.display = '';
+			});
+
+			var pagination = document.getElementById('poPagination');
+			if (matching.length <= PAGE_SIZE) {
+				pagination.style.display = 'none';
+				return;
+			}
+
+			pagination.style.display = 'flex';
+			document.getElementById('poPageIndicator').textContent = 'Page ' + currentPage + ' of ' + totalPages;
+			document.getElementById('poPrevBtn').disabled = currentPage === 1;
+			document.getElementById('poNextBtn').disabled = currentPage === totalPages;
+		}
+
+		// Called by the Filter button/dropdown - a filter change always
+		// resets to page 1 since the previous page number may no longer
+		// make sense against the new matching set.
+		window.applyPoFilters = function () {
+			currentPage = 1;
+			render();
+		};
+
+		document.getElementById('poPrevBtn').addEventListener('click', function () {
+			if (currentPage > 1) { currentPage--; render(); }
 		});
-	}
+		document.getElementById('poNextBtn').addEventListener('click', function () {
+			currentPage++; render();
+		});
+
+		render();
+	})();
 </script>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
