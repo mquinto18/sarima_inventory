@@ -1,23 +1,28 @@
 # Adds Python (for python/sarima_forecast.py) alongside Nixpacks' auto-detected
 # PHP/Node build.
 #
-# IMPORTANT: a first attempt set cmds under [phases.install] expecting them to
-# append to the auto-detected composer install / npm ci - instead Nixpacks
-# REPLACED that phase's cmds entirely, so composer/npm never ran and the
-# build failed (npm run build: vite not found, exit 127). Fixed by using a
-# separate, not-otherwise-used phase name so [phases.install] and
-# [phases.build] are never touched - their auto-detected cmds stay intact.
+# Both [phases.install].cmds and [phases.setup].nixPkgs were tried first and
+# both turned out to REPLACE the auto-detected PHP/Node config for that key,
+# not append to it:
+#  - cmds under [phases.install] dropped composer install/npm ci entirely
+#    (vite not found during npm run build, exit 127).
+#  - nixPkgs under [phases.setup] dropped php/composer from the nix
+#    environment entirely ("composer: command not found", exit 127).
+# Fixed by putting everything Python-related in its own phase that Nixpacks
+# never auto-generates, so [phases.setup]/[phases.install]/[phases.build] are
+# never touched at all and keep their auto-detected values completely intact.
+# nixPkgs declared on any phase still becomes available to the whole build
+# (Nixpacks builds one shared nix environment from the union across phases),
+# so python3 ends up on PATH everywhere despite being declared here.
 #
 # The venv is built at python/venv to match what
 # ProductController::resolvePythonBinary() and
 # SalesController::resolvePythonBinary() already look for first - no app code
 # needs to change for this to take effect.
 
-[phases.setup]
-nixPkgs = ["python312"]
-
 [phases.python-deps]
 dependsOn = ["install"]
+nixPkgs = ["python312"]
 cmds = [
     "python3 -m venv python/venv",
     "python/venv/bin/pip install --no-cache-dir -r python/requirements.txt"
