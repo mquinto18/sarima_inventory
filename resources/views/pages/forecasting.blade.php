@@ -483,6 +483,7 @@
 									<th>Product</th>
 									<th>Current Stock</th>
 									<th>Forecasted Demand</th>
+									<th>Reorder Point</th>
 									<th>Risk Level</th>
 									<th>Days Until Stockout</th>
 									<th>Recommended Action</th>
@@ -497,6 +498,7 @@
 										<td><strong>{{ $productForecast['product_name'] }}</strong></td>
 										<td>{{ $productForecast['current_stock'] }}</td>
 										<td>{{ number_format($productForecast['forecasted_demand'], 1) }}/month</td>
+										<td>{{ $productForecast['reorder_point'] }}</td>
 										<td>
 											@if($productForecast['risk_level'] === 'HIGH')
 												<span class="badge badge-danger">HIGH</span>

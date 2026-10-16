@@ -779,6 +779,7 @@ class SalesController extends Controller
                 'product_name' => $product->name,
                 'current_stock' => $product->stock,
                 'forecasted_demand' => $forecastedDemand,
+                'reorder_point' => $reorderPoint,
                 'recommended_order_quantity' => max($forecastedDemand, $reorderPoint - $product->stock),
                 'risk_level' => $this->assessStockRisk($product, $forecastedDemand),
                 'days_until_stockout' => $this->calculateDaysUntilStockout($product, $forecastedDemand)
