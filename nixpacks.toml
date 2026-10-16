@@ -1,7 +1,12 @@
 # Adds Python (for python/sarima_forecast.py) alongside Nixpacks' auto-detected
-# PHP build. nixPkgs/cmds declared here are appended to the auto-detected
-# PHP provider's setup/install, not a replacement - this must not clobber the
-# existing PHP build.
+# PHP/Node build.
+#
+# IMPORTANT: a first attempt set cmds under [phases.install] expecting them to
+# append to the auto-detected composer install / npm ci - instead Nixpacks
+# REPLACED that phase's cmds entirely, so composer/npm never ran and the
+# build failed (npm run build: vite not found, exit 127). Fixed by using a
+# separate, not-otherwise-used phase name so [phases.install] and
+# [phases.build] are never touched - their auto-detected cmds stay intact.
 #
 # The venv is built at python/venv to match what
 # ProductController::resolvePythonBinary() and
@@ -11,7 +16,8 @@
 [phases.setup]
 nixPkgs = ["python312"]
 
-[phases.install]
+[phases.python-deps]
+dependsOn = ["install"]
 cmds = [
     "python3 -m venv python/venv",
     "python/venv/bin/pip install --no-cache-dir -r python/requirements.txt"
