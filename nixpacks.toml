@@ -1,0 +1,18 @@
+# Adds Python (for python/sarima_forecast.py) alongside Nixpacks' auto-detected
+# PHP build. nixPkgs/cmds declared here are appended to the auto-detected
+# PHP provider's setup/install, not a replacement - this must not clobber the
+# existing PHP build.
+#
+# The venv is built at python/venv to match what
+# ProductController::resolvePythonBinary() and
+# SalesController::resolvePythonBinary() already look for first - no app code
+# needs to change for this to take effect.
+
+[phases.setup]
+nixPkgs = ["python312"]
+
+[phases.install]
+cmds = [
+    "python3 -m venv python/venv",
+    "python/venv/bin/pip install --no-cache-dir -r python/requirements.txt"
+]
