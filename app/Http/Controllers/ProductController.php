@@ -80,9 +80,9 @@ class ProductController extends Controller
         // Prefer a real SARIMAX-derived reorder point when there's enough
         // history to fit one meaningfully; falls back to the formula below
         // (same trend/variance math, just not model-fitted) otherwise.
-        $sarimaxReorderPoint = self::calculateSarimaxReorderPoint($productId);
-        if ($sarimaxReorderPoint !== null) {
-            return $sarimaxReorderPoint;
+        $sarimax = self::calculateSarimaxForecast($productId);
+        if ($sarimax !== null) {
+            return $sarimax['reorder_point'];
         }
 
         // Get historical demand data for the product
@@ -124,21 +124,23 @@ class ProductController extends Controller
     }
 
     /**
-     * Read-only lookup of a previously-computed SARIMAX reorder point.
+     * Read-only lookup of a previously-computed SARIMAX fit (both the
+     * forecasted demand and the reorder point derived from it).
      *
-     * Deliberately never computes inline: calculateDynamicReorderPoint() is
-     * called in tight per-product loops (dashboard reorder widgets, the
-     * replenishment sweep, every stock-decreasing sale), and a real SARIMAX
-     * fit takes several seconds per product (spawns a Python subprocess) -
-     * confirmed ~3s locally. Looping that over dozens of products inline
-     * would block the request for minutes. The cache is populated out of
-     * band by warmSarimaxReorderPoint(), via the `reorder:warm-sarimax`
-     * command. A cache miss here just means "not warmed yet" - caller falls
-     * back to the formula below, same as any other failure mode.
+     * Deliberately never computes inline: both calculateDynamicReorderPoint()
+     * and getForecastedDemand() are called in tight per-product loops
+     * (dashboard reorder widgets, the replenishment sweep, every
+     * stock-decreasing sale), and a real SARIMAX fit takes several seconds
+     * per product (spawns a Python subprocess) - confirmed ~3s locally.
+     * Looping that over dozens of products inline would block the request
+     * for minutes. The cache is populated out of band by
+     * warmSarimaxForecast(), via the `app:warm-sarimax-reorder-points`
+     * command. A cache miss here just means "not warmed yet" - callers fall
+     * back to their own formula, same as any other failure mode.
      */
-    private static function calculateSarimaxReorderPoint($productId)
+    private static function calculateSarimaxForecast($productId)
     {
-        return Cache::get("sarimax_reorder_point:{$productId}");
+        return Cache::get("sarimax_forecast:{$productId}");
     }
 
     /**
@@ -147,24 +149,28 @@ class ProductController extends Controller
      * (see app/Console/Commands/WarmSarimaxReorderPoints.php), never from a
      * web request.
      *
-     * Derives the reorder point from the model's own 95% confidence upper
-     * bound for next month's demand: that figure already IS a statistically
-     * grounded "expected demand + safety margin," so it's used directly
-     * instead of the hand-computed trend/variance formula.
+     * One fit produces both figures other code needs, so it's cached once
+     * and shared:
+     *  - 'forecasted_demand': the model's predicted mean for next month -
+     *    used anywhere "how much will we likely sell" is needed.
+     *  - 'reorder_point': the model's own 95% confidence upper bound for
+     *    next month's demand - already a statistically grounded
+     *    "expected demand + safety margin" figure, used directly instead of
+     *    the hand-computed trend/variance formula.
      *
      * Returns null when there isn't enough history for a meaningful fit,
      * proc_open is unavailable, or the Python call fails for any reason -
      * this path is a refinement, not a dependency the rest of the system can
      * break on.
      */
-    public static function warmSarimaxReorderPoint($productId)
+    public static function warmSarimaxForecast($productId)
     {
-        $result = self::computeSarimaxReorderPoint($productId);
-        Cache::put("sarimax_reorder_point:{$productId}", $result, now()->addDay());
+        $result = self::computeSarimaxForecast($productId);
+        Cache::put("sarimax_forecast:{$productId}", $result, now()->addDay());
         return $result;
     }
 
-    private static function computeSarimaxReorderPoint($productId)
+    private static function computeSarimaxForecast($productId)
     {
         if (!function_exists('proc_open')) {
             return null;
@@ -210,7 +216,7 @@ class ProductController extends Controller
         $returnCode = proc_close($process);
 
         if ($returnCode !== 0 || !$output) {
-            Log::warning("SARIMAX reorder point: Python call failed for product #{$productId}", [
+            Log::warning("SARIMAX forecast: Python call failed for product #{$productId}", [
                 'return_code' => $returnCode,
                 'stderr' => $error,
             ]);
@@ -218,11 +224,14 @@ class ProductController extends Controller
         }
 
         $result = json_decode($output, true);
-        if (!$result || !isset($result['conf_upper'][0])) {
+        if (!$result || !isset($result['predicted'][0], $result['conf_upper'][0])) {
             return null;
         }
 
-        return (int) ceil(max(0, $result['conf_upper'][0]));
+        return [
+            'forecasted_demand' => (int) round(max(0, $result['predicted'][0])),
+            'reorder_point' => (int) ceil(max(0, $result['conf_upper'][0])),
+        ];
     }
 
     /**
@@ -304,12 +313,21 @@ class ProductController extends Controller
     }
 
     /**
-     * Get forecasted demand for next month using simplified SARIMA
+     * Get forecasted demand for next month. Prefers a real SARIMAX fit
+     * (shares the cache computed for calculateDynamicReorderPoint - see
+     * calculateSarimaxForecast()), falling back to the trend/seasonality
+     * heuristic below when there isn't enough history or the cache hasn't
+     * been warmed yet.
      */
     public static function getForecastedDemand($productId)
     {
+        $sarimax = self::calculateSarimaxForecast($productId);
+        if ($sarimax !== null) {
+            return $sarimax['forecasted_demand'];
+        }
+
         $demandData = self::getProductDemandHistory($productId, 6);
-        
+
         if (count($demandData) < 3) {
             // Not enough data, return average of existing data or default
             return count($demandData) > 0

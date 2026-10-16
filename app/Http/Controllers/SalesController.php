@@ -392,8 +392,7 @@ class SalesController extends Controller
         $insights = [];
 
         foreach ($products as $product) {
-            $demandHistory = $this->getProductDemandHistory($product->id);
-            $forecastedDemand = $this->forecastProductDemand($product->id);
+            $forecastedDemand = \App\Http\Controllers\ProductController::getForecastedDemand($product->id);
             $dynamicReorderPoint = \App\Http\Controllers\ProductController::calculateDynamicReorderPoint($product->id);
 
             $insights[] = [
@@ -409,42 +408,6 @@ class SalesController extends Controller
         }
 
         return $insights;
-    }
-
-    /**
-     * Get product demand history for individual product analysis
-     */
-    private function getProductDemandHistory($productId, $months = 6)
-    {
-        $startDate = Carbon::now()->subMonths($months)->startOfMonth();
-
-        return Sale::select(
-            DB::raw('DATE_FORMAT(sale_date, "%Y-%m") as month'),
-            DB::raw('SUM(quantity_sold) as total_demand')
-        )
-            ->where('product_id', $productId)
-            ->where('sale_date', '>=', $startDate)
-            ->groupBy('month')
-            ->orderBy('month')
-            ->pluck('total_demand')
-            ->toArray();
-    }
-
-    /**
-     * Forecast demand for individual product
-     */
-    private function forecastProductDemand($productId)
-    {
-        $demandData = $this->getProductDemandHistory($productId);
-
-        if (count($demandData) < 2) {
-            return count($demandData) > 0 ? $demandData[0] : 10;
-        }
-
-        $trend = $this->calculateTrend($demandData);
-        $lastValue = end($demandData);
-
-        return max(0, round($lastValue + $trend));
     }
 
     /**
@@ -792,7 +755,16 @@ class SalesController extends Controller
     }
 
     /**
-     * Step 4: Product-specific demand forecasting for inventory management
+     * Step 4: Product-specific demand forecasting for inventory management.
+     *
+     * Delegates to ProductController so this table reflects the same figures
+     * as everywhere else in the app (reorder recommendations, the
+     * replenishment engine, the accuracy backtest) - forecasted_demand and
+     * the reorder point both come from the real SARIMAX fit when one's been
+     * warmed for a product, falling back to the trend/variance formulas
+     * otherwise. Previously this used its own separate, cruder estimate
+     * (sales-count-divided-by-4 as an "approximate months" denominator) that
+     * never agreed with the rest of the app.
      */
     private function generateProductDemandForecast($preprocessedData)
     {
@@ -800,15 +772,16 @@ class SalesController extends Controller
         $demandForecasts = [];
 
         foreach ($products as $product) {
-            $productSales = $this->getProductSalesHistory($product->id);
+            $forecastedDemand = \App\Http\Controllers\ProductController::getForecastedDemand($product->id);
+            $reorderPoint = \App\Http\Controllers\ProductController::calculateDynamicReorderPoint($product->id);
 
             $demandForecasts[$product->id] = [
                 'product_name' => $product->name,
                 'current_stock' => $product->stock,
-                'forecasted_demand' => $this->calculateProductDemand($productSales),
-                'recommended_order_quantity' => $this->calculateReorderQuantity($product, $productSales),
-                'risk_level' => $this->assessStockRisk($product, $productSales),
-                'days_until_stockout' => $this->calculateDaysUntilStockout($product, $productSales)
+                'forecasted_demand' => $forecastedDemand,
+                'recommended_order_quantity' => max($forecastedDemand, $reorderPoint - $product->stock),
+                'risk_level' => $this->assessStockRisk($product, $forecastedDemand),
+                'days_until_stockout' => $this->calculateDaysUntilStockout($product, $forecastedDemand)
             ];
         }
 
@@ -948,39 +921,9 @@ class SalesController extends Controller
         return sqrt($variance / count($data));
     }
 
-    private function getProductSalesHistory($productId, $months = 12)
+    private function assessStockRisk($product, $forecastedDemand)
     {
-        return Sale::where('product_id', $productId)
-            ->where('sale_date', '>=', Carbon::now()->subMonths($months))
-            ->orderBy('sale_date')
-            ->get();
-    }
-
-    private function calculateProductDemand($productSales)
-    {
-        if ($productSales->isEmpty())
-            return 0;
-
-        // Calculate monthly average demand
-        $totalQuantity = $productSales->sum('quantity_sold');
-        $months = max(1, $productSales->count() / 4); // Approximate months
-
-        return round($totalQuantity / $months, 2);
-    }
-
-    private function calculateReorderQuantity($product, $salesHistory)
-    {
-        $avgDemand = $this->calculateProductDemand($salesHistory);
-        $leadTime = 7; // Assumed lead time in days
-        $safetyStock = $avgDemand * 0.5; // 50% safety stock
-
-        return round(($avgDemand * $leadTime / 30) + $safetyStock);
-    }
-
-    private function assessStockRisk($product, $salesHistory)
-    {
-        $avgDemand = $this->calculateProductDemand($salesHistory);
-        $daysOfStock = $avgDemand > 0 ? ($product->stock / $avgDemand) * 30 : 999;
+        $daysOfStock = $forecastedDemand > 0 ? ($product->stock / $forecastedDemand) * 30 : 999;
 
         if ($daysOfStock <= 7)
             return 'HIGH';
@@ -989,9 +932,9 @@ class SalesController extends Controller
         return 'LOW';
     }
 
-    private function calculateDaysUntilStockout($product, $salesHistory)
+    private function calculateDaysUntilStockout($product, $forecastedDemand)
     {
-        $avgDailyDemand = $this->calculateProductDemand($salesHistory) / 30;
+        $avgDailyDemand = $forecastedDemand / 30;
 
         if ($avgDailyDemand <= 0)
             return 999;

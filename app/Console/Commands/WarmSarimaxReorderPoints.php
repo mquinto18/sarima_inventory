@@ -21,7 +21,7 @@ class WarmSarimaxReorderPoints extends Command
      *
      * @var string
      */
-    protected $description = 'Pre-fit the SARIMAX reorder point for every product with enough history and cache the result for a day. Run this out of band (not on a web request): each fit spawns a Python subprocess and takes a few seconds per product.';
+    protected $description = 'Pre-fit the SARIMAX forecast (forecasted demand + reorder point) for every product with enough history and cache the result for a day. Run this out of band (not on a web request): each fit spawns a Python subprocess and takes a few seconds per product.';
 
     /**
      * Execute the console command.
@@ -36,7 +36,7 @@ class WarmSarimaxReorderPoints extends Command
         $bar->start();
 
         foreach ($products as $product) {
-            $result = ProductController::warmSarimaxReorderPoint($product->id);
+            $result = ProductController::warmSarimaxForecast($product->id);
 
             if ($result === null) {
                 $skipped++;
