@@ -864,6 +864,24 @@
 			'Fair' => 'badge-warning',
 			default => 'badge-danger',
 		};
+
+		// Plain-language captions shown under each number, always visible (not
+		// hidden behind a hover tooltip) - written for a non-technical admin
+		// reading the modal, not someone who already knows what MAE/RMSE mean.
+		$maeCaption = 'Forecasts are off by about ' . number_format($forecastAccuracy['mae'], 1) . ' units, on average.';
+
+		$rmseToMaeRatio = $forecastAccuracy['mae'] > 0 ? $forecastAccuracy['rmse'] / $forecastAccuracy['mae'] : 1;
+		$rmseCaption = $rmseToMaeRatio > 1.5
+			? 'A few products had bigger misses than usual.'
+			: 'Misses are fairly consistent - no big surprises.';
+
+		$mapeCaption = 'Predictions are typically within ' . number_format($forecastAccuracy['mape'], 1) . '% of actual sales.';
+
+		$maseCaption = $forecastAccuracy['mase'] === null
+			? 'Not enough data to compare against a simple guess yet.'
+			: ($forecastAccuracy['mase'] < 1
+				? 'Better than just guessing last month\'s number.'
+				: 'Worse than just guessing last month\'s number.');
 	@endphp
 	<div id="accuracyMetricsModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true"
 		aria-labelledby="accuracyMetricsModalTitle">
@@ -887,18 +905,21 @@
 							MAE <span title="Average error, in units" style="cursor: help;">&#9432;</span>
 						</div>
 						<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['mae'], 2) }}</div>
+						<div class="text-muted" style="font-size: 0.78rem; margin-top: 2px; line-height: 1.3;">{{ $maeCaption }}</div>
 					</div>
 					<div class="col-6 col-md-3 mb-3">
 						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
 							RMSE <span title="Penalizes large misses more" style="cursor: help;">&#9432;</span>
 						</div>
 						<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['rmse'], 2) }}</div>
+						<div class="text-muted" style="font-size: 0.78rem; margin-top: 2px; line-height: 1.3;">{{ $rmseCaption }}</div>
 					</div>
 					<div class="col-6 col-md-3 mb-3">
 						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
 							MAPE <span title="Average error, as % of actual" style="cursor: help;">&#9432;</span>
 						</div>
 						<div style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">{{ number_format($forecastAccuracy['mape'], 2) }}%</div>
+						<div class="text-muted" style="font-size: 0.78rem; margin-top: 2px; line-height: 1.3;">{{ $mapeCaption }}</div>
 					</div>
 					<div class="col-6 col-md-3 mb-3">
 						<div class="text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -908,6 +929,8 @@
 							style="font-size: 1.4rem; font-weight: 700;">
 							{{ $forecastAccuracy['mase'] !== null ? number_format($forecastAccuracy['mase'], 2) : 'N/A' }}
 						</div>
+						<div class="{{ $forecastAccuracy['mase'] !== null ? ($forecastAccuracy['mase'] < 1 ? 'growth-positive' : 'growth-negative') : 'text-muted' }}"
+							style="font-size: 0.78rem; margin-top: 2px; line-height: 1.3;">{{ $maseCaption }}</div>
 					</div>
 				</div>
 			</div>
