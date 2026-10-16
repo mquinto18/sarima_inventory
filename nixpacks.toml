@@ -22,7 +22,11 @@
 
 [phases.python-deps]
 dependsOn = ["install"]
-nixPkgs = ["python312"]
+# stdenv.cc.cc.lib provides libstdc++.so.6 - without it, numpy's compiled
+# extensions fail at import with "ImportError: libstdc++.so.6: cannot open
+# shared object file" (confirmed in a live container), since a bare python3
+# nix package doesn't pull in the C++ runtime scientific wheels link against.
+nixPkgs = ["python312", "stdenv.cc.cc.lib"]
 cmds = [
     "python3 -m venv python/venv",
     "python/venv/bin/pip install --no-cache-dir -r python/requirements.txt"
