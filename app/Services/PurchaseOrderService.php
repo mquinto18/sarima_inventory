@@ -32,6 +32,16 @@ class PurchaseOrderService
 
         Mail::to($purchaseOrder->supplier->email)->send(new PurchaseOrderMail($purchaseOrder));
 
+        // The 'log'/'array' mailers never throw - they just write the
+        // message to a log file instead of delivering it - so a misconfigured
+        // MAIL_MAILER in a real environment would otherwise let every PO
+        // silently flip to 'sent' with nothing ever reaching the supplier.
+        if (!app()->environment('local', 'testing') && in_array(config('mail.default'), ['log', 'array'])) {
+            throw new \RuntimeException(
+                "Supplier email for {$purchaseOrder->po_number} was not delivered: MAIL_MAILER is '" . config('mail.default') . "' in this environment."
+            );
+        }
+
         $purchaseOrder->update(['status' => 'sent', 'sent_at' => now()]);
     }
 }

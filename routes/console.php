@@ -21,3 +21,12 @@ Schedule::command('app:check-replenishment')->everyFifteenMinutes()->withoutOver
 // per calendar day. withoutOverlapping() for the same reason as above - this
 // also mutates stock, so two concurrent runs must never interleave.
 Schedule::command('app:dispose-expired-stock')->dailyAt('01:00')->withoutOverlapping();
+
+// Refits each product's SARIMAX reorder point and caches it for a day (see
+// ProductController::warmSarimaxReorderPoint()). Deliberately NOT run via the
+// 15-minute replenishment check or any other web-triggered path - each fit
+// spawns a Python subprocess and takes a few seconds per product, so it only
+// ever runs here, off the request cycle. withoutOverlapping() since a slow
+// run (dozens of products x a few seconds each) could still be going at the
+// next scheduled time.
+Schedule::command('app:warm-sarimax-reorder-points')->dailyAt('02:00')->withoutOverlapping();

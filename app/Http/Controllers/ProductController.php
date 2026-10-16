@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
 {
@@ -75,6 +77,14 @@ class ProductController extends Controller
             return 10; // Default fallback
         }
 
+        // Prefer a real SARIMAX-derived reorder point when there's enough
+        // history to fit one meaningfully; falls back to the formula below
+        // (same trend/variance math, just not model-fitted) otherwise.
+        $sarimaxReorderPoint = self::calculateSarimaxReorderPoint($productId);
+        if ($sarimaxReorderPoint !== null) {
+            return $sarimaxReorderPoint;
+        }
+
         // Get historical demand data for the product
         $demandData = self::getProductDemandHistory($productId);
         
@@ -97,12 +107,155 @@ class ProductController extends Controller
         $safetyStock = $serviceLevel * $standardDeviation * sqrt($leadTime);
         $dynamicReorderPoint = ($averageMonthlyDemand * $leadTime) + $safetyStock;
 
-        // Ensure minimum reorder point. Rounded up to a whole unit here at the
-        // source: stock is only ever counted in whole units, and every caller
-        // either displays this or compares it against an integer stock level.
-        // ceil() rather than round() so a fractional safety margin is never
-        // discarded — under-ordering is the costlier mistake.
-        return (int) ceil(max($dynamicReorderPoint, $product->reorder_level ?? 5));
+        // Rounded up to a whole unit here at the source: stock is only ever
+        // counted in whole units, and every caller either displays this or
+        // compares it against an integer stock level. ceil() rather than
+        // round() so a fractional safety margin is never discarded —
+        // under-ordering is the costlier mistake.
+        //
+        // Deliberately NOT floored against $product->reorder_level here: that
+        // static column is a stale, manually-set (or last-synced) number, and
+        // flooring against it meant a product could stay flagged for reorder
+        // forever after a one-time high-demand period, even once current
+        // demand data says otherwise. The static value is still the fallback
+        // above when there isn't enough history to compute a real SARIMA
+        // point at all.
+        return (int) ceil($dynamicReorderPoint);
+    }
+
+    /**
+     * Read-only lookup of a previously-computed SARIMAX reorder point.
+     *
+     * Deliberately never computes inline: calculateDynamicReorderPoint() is
+     * called in tight per-product loops (dashboard reorder widgets, the
+     * replenishment sweep, every stock-decreasing sale), and a real SARIMAX
+     * fit takes several seconds per product (spawns a Python subprocess) -
+     * confirmed ~3s locally. Looping that over dozens of products inline
+     * would block the request for minutes. The cache is populated out of
+     * band by warmSarimaxReorderPoint(), via the `reorder:warm-sarimax`
+     * command. A cache miss here just means "not warmed yet" - caller falls
+     * back to the formula below, same as any other failure mode.
+     */
+    private static function calculateSarimaxReorderPoint($productId)
+    {
+        return Cache::get("sarimax_reorder_point:{$productId}");
+    }
+
+    /**
+     * Actually fit the SARIMAX model and cache the result for a day. This is
+     * the expensive path - only call it from a background/console context
+     * (see app/Console/Commands/WarmSarimaxReorderPoints.php), never from a
+     * web request.
+     *
+     * Derives the reorder point from the model's own 95% confidence upper
+     * bound for next month's demand: that figure already IS a statistically
+     * grounded "expected demand + safety margin," so it's used directly
+     * instead of the hand-computed trend/variance formula.
+     *
+     * Returns null when there isn't enough history for a meaningful fit,
+     * proc_open is unavailable, or the Python call fails for any reason -
+     * this path is a refinement, not a dependency the rest of the system can
+     * break on.
+     */
+    public static function warmSarimaxReorderPoint($productId)
+    {
+        $result = self::computeSarimaxReorderPoint($productId);
+        Cache::put("sarimax_reorder_point:{$productId}", $result, now()->addDay());
+        return $result;
+    }
+
+    private static function computeSarimaxReorderPoint($productId)
+    {
+        if (!function_exists('proc_open')) {
+            return null;
+        }
+
+        // Needs real monthly granularity to mean anything - require at
+        // least a year of history before trusting a fitted model over the
+        // simpler formula.
+        $demandData = self::getProductDemandHistory($productId, 24);
+        if (count($demandData) < 12) {
+            return null;
+        }
+
+        $pythonScript = base_path('python/sarima_forecast.py');
+        $pythonBinary = self::resolvePythonBinary();
+        if (!$pythonBinary || !file_exists($pythonScript)) {
+            return null;
+        }
+
+        $cursor = Carbon::now()->subMonths(count($demandData))->startOfMonth();
+        $sales = [];
+        foreach ($demandData as $qty) {
+            $sales[] = ['month' => $cursor->format('Y-m'), 'revenue' => (float) $qty];
+            $cursor->addMonth();
+        }
+
+        $process = proc_open(
+            escapeshellarg($pythonBinary) . ' ' . escapeshellarg($pythonScript),
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes
+        );
+
+        if (!is_resource($process)) {
+            return null;
+        }
+
+        fwrite($pipes[0], json_encode(['sales' => $sales, 'forecast_period' => 1]));
+        fclose($pipes[0]);
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $returnCode = proc_close($process);
+
+        if ($returnCode !== 0 || !$output) {
+            Log::warning("SARIMAX reorder point: Python call failed for product #{$productId}", [
+                'return_code' => $returnCode,
+                'stderr' => $error,
+            ]);
+            return null;
+        }
+
+        $result = json_decode($output, true);
+        if (!$result || !isset($result['conf_upper'][0])) {
+            return null;
+        }
+
+        return (int) ceil(max(0, $result['conf_upper'][0]));
+    }
+
+    /**
+     * Locate a Python interpreter that can run python/sarima_forecast.py.
+     * Mirrors SalesController::resolvePythonBinary() - prefers the
+     * project-local virtualenv (has pandas/statsmodels installed) over
+     * whatever "python"/"python3" happens to be on PATH.
+     */
+    private static function resolvePythonBinary()
+    {
+        $candidates = [
+            base_path('python/venv/bin/python3'),
+            base_path('python/venv/Scripts/python.exe'),
+            'python3',
+            'python',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (str_starts_with($candidate, '/') || preg_match('/^[A-Za-z]:\\\\/', $candidate)) {
+                if (is_file($candidate) && is_executable($candidate)) {
+                    return $candidate;
+                }
+                continue;
+            }
+
+            $which = DIRECTORY_SEPARATOR === '\\' ? 'where' : 'command -v';
+            $resolved = trim((string) shell_exec($which . ' ' . escapeshellarg($candidate) . ' 2>/dev/null'));
+            if ($resolved !== '') {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
