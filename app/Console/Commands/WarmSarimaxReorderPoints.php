@@ -21,7 +21,7 @@ class WarmSarimaxReorderPoints extends Command
      *
      * @var string
      */
-    protected $description = 'Pre-fit the SARIMAX forecast (forecasted demand + reorder point) for every product with enough history and cache the result for a day. Run this out of band (not on a web request): each fit spawns a Python subprocess and takes a few seconds per product.';
+    protected $description = 'Pre-fit the SARIMAX forecast (forecasted demand + reorder point) and the SARIMAX backtest (for the accuracy metrics) for every product with enough history, caching both for a day. Run this out of band (not on a web request): each fit spawns a Python subprocess and takes a few seconds per product - two fits per product, so roughly double the runtime of warming forecasts alone.';
 
     /**
      * Execute the console command.
@@ -29,19 +29,25 @@ class WarmSarimaxReorderPoints extends Command
     public function handle()
     {
         $products = Product::all();
-        $fitted = 0;
-        $skipped = 0;
+        $forecastsFitted = 0;
+        $forecastsSkipped = 0;
+        $backtestsFitted = 0;
+        $backtestsSkipped = 0;
 
         $bar = $this->output->createProgressBar($products->count());
         $bar->start();
 
         foreach ($products as $product) {
-            $result = ProductController::warmSarimaxForecast($product->id);
-
-            if ($result === null) {
-                $skipped++;
+            if (ProductController::warmSarimaxForecast($product->id) === null) {
+                $forecastsSkipped++;
             } else {
-                $fitted++;
+                $forecastsFitted++;
+            }
+
+            if (ProductController::warmSarimaxBacktest($product->id) === null) {
+                $backtestsSkipped++;
+            } else {
+                $backtestsFitted++;
             }
 
             $bar->advance();
@@ -50,7 +56,13 @@ class WarmSarimaxReorderPoints extends Command
         $bar->finish();
         $this->newLine();
 
-        $this->info("SARIMAX reorder points fitted: {$fitted}. Skipped (insufficient history or Python unavailable): {$skipped}.");
-        Log::info('WarmSarimaxReorderPoints: run complete', ['fitted' => $fitted, 'skipped' => $skipped]);
+        $this->info("SARIMAX forecasts fitted: {$forecastsFitted}. Skipped: {$forecastsSkipped}.");
+        $this->info("SARIMAX backtests fitted: {$backtestsFitted}. Skipped: {$backtestsSkipped}.");
+        Log::info('WarmSarimaxReorderPoints: run complete', [
+            'forecasts_fitted' => $forecastsFitted,
+            'forecasts_skipped' => $forecastsSkipped,
+            'backtests_fitted' => $backtestsFitted,
+            'backtests_skipped' => $backtestsSkipped,
+        ]);
     }
 }

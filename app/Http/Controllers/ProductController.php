@@ -235,6 +235,105 @@ class ProductController extends Controller
     }
 
     /**
+     * Read-only lookup of a previously-computed SARIMAX backtest, used by
+     * calculateForecastAccuracy(). Same never-compute-inline rule as
+     * calculateSarimaxForecast() above - this is a second, separate Python
+     * fit (different input window), not derivable from that cache entry.
+     */
+    private static function calculateSarimaxBacktest($productId)
+    {
+        return Cache::get("sarimax_backtest:{$productId}");
+    }
+
+    /**
+     * Fits SARIMAX on all history EXCEPT the most recent month, forecasts
+     * that held-out month, and caches both the real actual and the model's
+     * prediction for it - this is what makes calculateForecastAccuracy() a
+     * genuine backtest of the real model, instead of scoring the separate
+     * trend/seasonality heuristic against itself.
+     *
+     * Deliberately a second, independent fit from warmSarimaxForecast():
+     * that one trains on ALL available history to predict next month (not
+     * yet observed); this one withholds the last known month specifically so
+     * there's a real actual value to score the prediction against.
+     */
+    public static function warmSarimaxBacktest($productId)
+    {
+        $result = self::computeSarimaxBacktest($productId);
+        Cache::put("sarimax_backtest:{$productId}", $result, now()->addDay());
+        return $result;
+    }
+
+    private static function computeSarimaxBacktest($productId)
+    {
+        if (!function_exists('proc_open')) {
+            return null;
+        }
+
+        // +1 over the live-forecast threshold: 12 months to train on, plus
+        // the 1 held-out month being predicted.
+        $demandData = self::getProductDemandHistory($productId, 24);
+        if (count($demandData) < 13) {
+            return null;
+        }
+
+        $actual = array_pop($demandData);
+
+        $pythonScript = base_path('python/sarima_forecast.py');
+        $pythonBinary = self::resolvePythonBinary();
+        if (!$pythonBinary || !file_exists($pythonScript)) {
+            return null;
+        }
+
+        $cursor = Carbon::now()->subMonths(count($demandData) + 1)->startOfMonth();
+        $sales = [];
+        foreach ($demandData as $qty) {
+            $sales[] = ['month' => $cursor->format('Y-m'), 'revenue' => (float) $qty];
+            $cursor->addMonth();
+        }
+
+        $process = proc_open(
+            escapeshellarg($pythonBinary) . ' ' . escapeshellarg($pythonScript),
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes
+        );
+
+        if (!is_resource($process)) {
+            return null;
+        }
+
+        fwrite($pipes[0], json_encode(['sales' => $sales, 'forecast_period' => 1]));
+        fclose($pipes[0]);
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $returnCode = proc_close($process);
+
+        if ($returnCode !== 0 || !$output) {
+            Log::warning("SARIMAX backtest: Python call failed for product #{$productId}", [
+                'return_code' => $returnCode,
+                'stderr' => $error,
+            ]);
+            return null;
+        }
+
+        $result = json_decode($output, true);
+        if (!$result || !isset($result['predicted'][0])) {
+            return null;
+        }
+
+        return [
+            'actual' => $actual,
+            'predicted' => max(0, $result['predicted'][0]),
+            // Kept alongside the prediction so calculateForecastAccuracy()
+            // can compute MASE's naive-baseline comparison without a second
+            // database query.
+            'training_history' => $demandData,
+        ];
+    }
+
+    /**
      * Locate a Python interpreter that can run python/sarima_forecast.py.
      * Mirrors SalesController::resolvePythonBinary() - prefers the
      * project-local virtualenv (has pandas/statsmodels installed) over
@@ -399,11 +498,63 @@ class ProductController extends Controller
     }
 
     /**
+     * Accumulates one product's single-holdout error into the running
+     * MAE/RMSE/MAPE/MASE totals. Shared by both branches of
+     * calculateForecastAccuracy() (real SARIMAX backtest and the
+     * trend/seasonality heuristic fallback) so the same metric math is
+     * applied regardless of which forecast produced $forecastedDemand.
+     */
+    private static function accumulateAccuracyMetrics(
+        $actualDemand,
+        $forecastedDemand,
+        $trainingHistory,
+        &$totalMape,
+        &$totalAbsoluteError,
+        &$totalSquaredError,
+        &$validProducts,
+        &$totalMase,
+        &$validMaseProducts
+    ) {
+        // Note: $forecastedDemand can legitimately be 0 (a product the model
+        // predicted no demand for) - that's still a real, countable error
+        // against actualDemand > 0, so it must not be excluded from the
+        // metrics below. Neither MAPE (divides by actualDemand) nor MAE/RMSE
+        // has a division-by-zero risk from forecastedDemand being 0.
+        $absoluteError = abs($actualDemand - $forecastedDemand);
+
+        // MAPE
+        $productMape = ($absoluteError / $actualDemand) * 100;
+        $totalMape += min($productMape, 100); // Cap at 100% error
+
+        // MAE / RMSE accumulators
+        $totalAbsoluteError += $absoluteError;
+        $totalSquaredError += pow($actualDemand - $forecastedDemand, 2);
+        $validProducts++;
+
+        // MASE: scale this product's error against its own in-sample naive
+        // (previous-month) forecast error.
+        $naiveDiffs = [];
+        for ($i = 1; $i < count($trainingHistory); $i++) {
+            $naiveDiffs[] = abs($trainingHistory[$i] - $trainingHistory[$i - 1]);
+        }
+        $naiveMae = count($naiveDiffs) > 0 ? array_sum($naiveDiffs) / count($naiveDiffs) : 0;
+
+        if ($naiveMae > 0) {
+            $totalMase += $absoluteError / $naiveMae;
+            $validMaseProducts++;
+        }
+    }
+
+    /**
      * Calculate forecast accuracy based on SARIMA predictions vs actual sales.
      *
      * Evaluated the same way for every metric: for each product, the last
      * month of history is held out as "actual" and forecast from the
-     * preceding months (single-holdout, not a rolling backtest).
+     * preceding months (single-holdout, not a rolling backtest). Prefers a
+     * real SARIMAX backtest (see warmSarimaxBacktest()) when one's been
+     * cached for a product, falling back to the trend/seasonality heuristic
+     * otherwise - same prefer-the-real-model-then-fall-back pattern as
+     * calculateDynamicReorderPoint() and getForecastedDemand().
      *  - MAE  = average |actual - forecast|, in units
      *  - RMSE = sqrt(average (actual - forecast)^2), in units — penalizes
      *           large misses harder than MAE
@@ -426,7 +577,28 @@ class ProductController extends Controller
         $validMaseProducts = 0;
 
         foreach ($products as $product) {
-            // Get historical data (last 6 months)
+            $sarimaxBacktest = self::calculateSarimaxBacktest($product->id);
+
+            if ($sarimaxBacktest !== null) {
+                if ($sarimaxBacktest['actual'] > 0) {
+                    self::accumulateAccuracyMetrics(
+                        $sarimaxBacktest['actual'],
+                        $sarimaxBacktest['predicted'],
+                        $sarimaxBacktest['training_history'],
+                        $totalMape,
+                        $totalAbsoluteError,
+                        $totalSquaredError,
+                        $validProducts,
+                        $totalMase,
+                        $validMaseProducts
+                    );
+                }
+                continue;
+            }
+
+            // Fallback: no cached SARIMAX backtest for this product (not
+            // enough history for one, or not warmed yet) - score the
+            // trend/seasonality heuristic instead, same as before.
             $historicalData = self::getProductDemandHistory($product->id, 6);
 
             // Need at least 4 data points to compare (3 for training, 1 for testing)
@@ -443,35 +615,17 @@ class ProductController extends Controller
                     $seasonalComponent = isset($seasonal[$seasonalIndex]) ? $seasonal[$seasonalIndex] : 0;
                     $forecastedDemand = max(0, $lastValue + $trend + $seasonalComponent);
 
-                    // Note: forecastedDemand can legitimately be 0 (a product
-                    // the model predicted no demand for) - that's still a
-                    // real, countable error against actualDemand > 0, so it
-                    // must not be excluded from the metrics below. Neither
-                    // MAPE (divides by actualDemand) nor MAE/RMSE has a
-                    // division-by-zero risk from forecastedDemand being 0.
-                    $absoluteError = abs($actualDemand - $forecastedDemand);
-
-                    // MAPE (existing)
-                    $productMape = ($absoluteError / $actualDemand) * 100;
-                    $totalMape += min($productMape, 100); // Cap at 100% error
-
-                    // MAE / RMSE accumulators
-                    $totalAbsoluteError += $absoluteError;
-                    $totalSquaredError += pow($actualDemand - $forecastedDemand, 2);
-                    $validProducts++;
-
-                    // MASE: scale this product's error against its own
-                    // in-sample naive (previous-month) forecast error.
-                    $naiveDiffs = [];
-                    for ($i = 1; $i < count($historicalData); $i++) {
-                        $naiveDiffs[] = abs($historicalData[$i] - $historicalData[$i - 1]);
-                    }
-                    $naiveMae = count($naiveDiffs) > 0 ? array_sum($naiveDiffs) / count($naiveDiffs) : 0;
-
-                    if ($naiveMae > 0) {
-                        $totalMase += $absoluteError / $naiveMae;
-                        $validMaseProducts++;
-                    }
+                    self::accumulateAccuracyMetrics(
+                        $actualDemand,
+                        $forecastedDemand,
+                        $historicalData,
+                        $totalMape,
+                        $totalAbsoluteError,
+                        $totalSquaredError,
+                        $validProducts,
+                        $totalMase,
+                        $validMaseProducts
+                    );
                 }
             }
         }
