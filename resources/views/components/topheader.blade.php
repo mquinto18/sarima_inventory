@@ -419,7 +419,12 @@
                 </div>
             </div>
             <div class="user-wrapper">
-                <span class="user-avatar">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
+                <span class="user-avatar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </span>
                 <div class="user-info">
                     <span class="user-name">{{ Auth::user()->name }}</span><br>
                     <span class="user-role">{{ ucfirst(Auth::user()->role) }}</span>
