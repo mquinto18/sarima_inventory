@@ -1,19 +1,28 @@
 # Adds Python (for python/sarima_forecast.py) alongside Nixpacks' auto-detected
 # PHP/Node build.
 #
-# Both [phases.install].cmds and [phases.setup].nixPkgs were tried first and
-# both turned out to REPLACE the auto-detected PHP/Node config for that key,
-# not append to it:
+# Several things were tried first, each replacing (not merging with) part of
+# the auto-detected PHP/Node config:
 #  - cmds under [phases.install] dropped composer install/npm ci entirely
 #    (vite not found during npm run build, exit 127).
 #  - nixPkgs under [phases.setup] dropped php/composer from the nix
 #    environment entirely ("composer: command not found", exit 127).
-# Fixed by putting everything Python-related in its own phase that Nixpacks
-# never auto-generates, so [phases.setup]/[phases.install]/[phases.build] are
-# never touched at all and keep their auto-detected values completely intact.
-# nixPkgs declared on any phase still becomes available to the whole build
-# (Nixpacks builds one shared nix environment from the union across phases),
-# so python3 ends up on PATH everywhere despite being declared here.
+#  - nixPkgs = ["python312", "stdenv.cc.cc.lib"] on its own phase got
+#    numpy importing far enough to hit a real ABI conflict: the gcc-13.3.0
+#    lib this nixpkgs revision resolves to was built against glibc 2.38,
+#    while this container's actual system glibc is 2.37 - a genuine
+#    cross-nixpkgs-generation mismatch, not something fixable by adjusting
+#    LD_LIBRARY_PATH (confirmed: "version `GLIBC_2.38' not found").
+#
+# Switched to aptPkgs instead of nixPkgs for Python specifically: apt
+# packages come from this exact Ubuntu base image's own repositories, so
+# python3/pip and whatever numpy/pandas/statsmodels link against all share
+# the SAME system glibc/libstdc++ - no cross-generation version mismatch is
+# possible the way it is when mixing nix-provided packages pinned to a
+# different nixpkgs revision than the base image itself.
+#
+# Still on its own phase (not [phases.install]) so the auto-detected PHP/Node
+# cmds are never touched.
 #
 # The venv is built at python/venv to match what
 # ProductController::resolvePythonBinary() and
@@ -22,11 +31,7 @@
 
 [phases.python-deps]
 dependsOn = ["install"]
-# stdenv.cc.cc.lib provides libstdc++.so.6 - without it, numpy's compiled
-# extensions fail at import with "ImportError: libstdc++.so.6: cannot open
-# shared object file" (confirmed in a live container), since a bare python3
-# nix package doesn't pull in the C++ runtime scientific wheels link against.
-nixPkgs = ["python312", "stdenv.cc.cc.lib"]
+aptPkgs = ["python3", "python3-venv", "python3-pip"]
 cmds = [
     "python3 -m venv python/venv",
     "python/venv/bin/pip install --no-cache-dir -r python/requirements.txt"
