@@ -497,7 +497,7 @@
 									<tr class="demand-forecast-row" data-df-page="{{ intdiv($loop->index, 10) + 1 }}">
 										<td><strong>{{ $productForecast['product_name'] }}</strong></td>
 										<td>{{ $productForecast['current_stock'] }}</td>
-										<td>{{ number_format($productForecast['forecasted_demand'], 1) }}/month</td>
+										<td>{{ number_format($productForecast['forecasted_demand']) }}/month</td>
 										<td>{{ $productForecast['reorder_point'] }}</td>
 										<td>
 											@if($productForecast['risk_level'] === 'HIGH')
