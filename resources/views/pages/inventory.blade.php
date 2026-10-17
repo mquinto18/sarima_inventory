@@ -24,6 +24,20 @@
 			font-size: 0.98rem;
 		}
 	}
+
+	/* Inline field-level validation errors, shown under a field after a
+	   failed submit - see showFieldErrors()/clearFieldErrors() below. */
+	.form-input-group.has-error {
+		border: 1.5px solid #dc3545 !important;
+		border-radius: 8px;
+	}
+
+	.field-error {
+		color: #dc3545;
+		font-size: 0.82rem;
+		margin: 4px 0 0;
+		display: block;
+	}
 </style>
 <div class="page-shell">
 	<div class="dashboard-hero">
@@ -254,7 +268,7 @@
 							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
 							</svg>
-							<input type="date" id="productExpiry" name="expiry_date">
+							<input type="date" id="productExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
 						</div>
 						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Leave blank if this product doesn't expire or the batch isn't tracked.</small>
 					</div>
@@ -344,7 +358,7 @@
 								<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
 								</svg>
-								<input type="date" id="editProductExpiry" name="expiry_date">
+								<input type="date" id="editProductExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
 							</div>
 							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Leave blank if this product doesn't expire or the batch isn't tracked.</small>
 						</div>
@@ -363,6 +377,29 @@
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script>
 		$(function () {
+			// Inline field-level validation errors for the Add/Edit Product
+			// forms. Laravel returns a 422 with `errors: {field: [messages]}`
+			// on a failed `$request->validate(...)` call - this renders each
+			// message directly under its field instead of leaving the user
+			// with only a generic "the given data was invalid" toast.
+			function clearFieldErrors(form) {
+				form.find('.field-error').remove();
+				form.find('.form-input-group').removeClass('has-error');
+			}
+
+			function showFieldErrors(form, errors) {
+				clearFieldErrors(form);
+				Object.keys(errors).forEach(function (field) {
+					var input = form.find('[name="' + field + '"]');
+					if (!input.length) {
+						return;
+					}
+					var group = input.closest('.form-input-group');
+					(group.length ? group : input).addClass('has-error')
+						.after('<small class="field-error">' + errors[field][0] + '</small>');
+				});
+			}
+
 			// Edit Request button AJAX (single request per user)
 			$('#editRequestBtn').on('click', function () {
 				var btn = $(this).get(0);
@@ -452,6 +489,7 @@
 
 			$('#closeModal, #cancelBtn').on('click', function () {
 				resetCategoryField();
+				clearFieldErrors($('#addProductForm'));
 				$('#addProductModal').hide();
 			});
 
@@ -479,6 +517,7 @@
 
 				var submitBtn = form.find('button[type="submit"]').get(0);
 				setButtonLoading(submitBtn, true, 'Adding...');
+				clearFieldErrors(form);
 				$.ajax({
 					url: '/products',
 					method: 'POST',
@@ -487,6 +526,7 @@
 						setButtonLoading(submitBtn, false);
 						$('#addProductModal').hide();
 						form[0].reset();
+						clearFieldErrors(form);
 						resetCategoryField();
 						showToast('Product added successfully!', 'success');
 						// Reload page to show new product
@@ -496,7 +536,12 @@
 					},
 					error: function (xhr) {
 						setButtonLoading(submitBtn, false);
-						showToast(xhr.responseJSON?.message || 'Could not add product.', 'error');
+						if (xhr.status === 422 && xhr.responseJSON?.errors) {
+							showFieldErrors(form, xhr.responseJSON.errors);
+							showToast('Please fix the highlighted fields.', 'error');
+						} else {
+							showToast(xhr.responseJSON?.message || 'Could not add product.', 'error');
+						}
 					}
 				});
 			});
@@ -523,6 +568,7 @@
 
 				// Set form action
 				$('#editProductForm').attr('action', '/products/' + productId);
+				clearFieldErrors($('#editProductForm'));
 
 				// Show modal
 				$('#editProductModal').show();
@@ -530,6 +576,7 @@
 
 			// Hide edit modal
 			$('#closeEditModal, #cancelEditBtn').on('click', function () {
+				clearFieldErrors($('#editProductForm'));
 				$('#editProductModal').hide();
 			});
 
@@ -547,6 +594,7 @@
 				var productId = $('#editProductId').val();
 				var submitBtn = form.find('button[type="submit"]').get(0);
 				setButtonLoading(submitBtn, true, 'Updating...');
+				clearFieldErrors(form);
 
 				$.ajax({
 					url: '/products/' + productId,
@@ -555,6 +603,7 @@
 					success: function (response) {
 						setButtonLoading(submitBtn, false);
 						$('#editProductModal').hide();
+						clearFieldErrors(form);
 						showToast('Product updated successfully!', 'success');
 						// Reload page to show updated product
 						setTimeout(function () {
@@ -563,7 +612,12 @@
 					},
 					error: function (xhr) {
 						setButtonLoading(submitBtn, false);
-						showToast(xhr.responseJSON?.message || 'Could not update product.', 'error');
+						if (xhr.status === 422 && xhr.responseJSON?.errors) {
+							showFieldErrors(form, xhr.responseJSON.errors);
+							showToast('Please fix the highlighted fields.', 'error');
+						} else {
+							showToast(xhr.responseJSON?.message || 'Could not update product.', 'error');
+						}
 					}
 				});
 			});
