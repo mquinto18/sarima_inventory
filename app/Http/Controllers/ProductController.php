@@ -899,9 +899,14 @@ class ProductController extends Controller
         })->map(function ($product) {
             $dynamicReorderPoint = self::calculateDynamicReorderPoint($product->id);
             $forecastedDemand = self::getForecastedDemand($product->id);
-            $recommendedQuantity = max($forecastedDemand * 2, $dynamicReorderPoint);
+            // Matches the other SARIMA-Enhanced reorder recommendation path
+            // (line ~50 above) - this one previously doubled forecasted
+            // demand before comparing, an undocumented, arbitrary buffer that
+            // made two views claiming the same methodology disagree on the
+            // actual recommended quantity for the same product.
+            $recommendedQuantity = max($forecastedDemand, $dynamicReorderPoint);
             $priority = $product->stock <= Setting::get('critical_stock_level', 5) ? 'High' : ($product->stock <= Setting::get('low_stock_threshold', 10) ? 'Medium' : 'Low');
-            
+
             return [
                 'id' => $product->id,
                 'name' => $product->name,
