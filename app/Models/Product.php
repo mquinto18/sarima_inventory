@@ -26,6 +26,18 @@ class Product extends Model
         'expiry_date' => 'date',
     ];
 
+    /**
+     * Categories whose items never expire (e.g. gauze, alcohol, thermometers),
+     * so the Add/Edit Product forms don't require an expiry date for them and
+     * any submitted one is ignored rather than stored.
+     */
+    public const NON_EXPIRING_CATEGORIES = ['medical supplies'];
+
+    public static function categoryNeverExpires(?string $category): bool
+    {
+        return in_array(strtolower(trim((string) $category)), self::NON_EXPIRING_CATEGORIES, true);
+    }
+
     public function approvedEditRequest()
     {
         return $this->hasOne(\App\Models\EditRequest::class)

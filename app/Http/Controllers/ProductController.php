@@ -942,6 +942,11 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
+        // Some categories (e.g. Medical Supplies - gauze, alcohol, thermometers)
+        // never expire, so expiry_date drops from required to ignored for them
+        // rather than forcing an arbitrary date into every one of those products.
+        $neverExpires = Product::categoryNeverExpires($request->input('category'));
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'sku' => 'nullable|string|max:64|unique:products,sku',
@@ -955,8 +960,12 @@ class ProductController extends Controller
             // its batch is fully written off (lines ~806-807): that's a
             // direct Eloquent update, not a form submission, so it never
             // goes through this validation rule.
-            'expiry_date' => 'required|date',
+            'expiry_date' => $neverExpires ? 'nullable|date' : 'required|date',
         ]);
+
+        if ($neverExpires) {
+            $validated['expiry_date'] = null;
+        }
 
         // Categories can now be typed in freely from the Add Product form, so
         // trim here rather than storing " Medicine" as a separate category.
@@ -1032,15 +1041,24 @@ class ProductController extends Controller
         // edit instead of leaving name/price/status committed against a
         // stock value that was never applied.
         $stockDelta = $validated['stock'] - $product->stock;
-        // Only meaningful on an increase - a decrease has no new batch to
-        // attach an expiry to, so the submitted value is simply unused then.
-        $submittedExpiry = $validated['expiry_date'] ?? null;
+        // Some categories never expire (e.g. Medical Supplies) - any
+        // submitted expiry is ignored for those rather than attached to a
+        // new batch. Only meaningful on a stock increase otherwise - a
+        // decrease has no new batch to attach an expiry to.
+        $neverExpires = Product::categoryNeverExpires($validated['category'] ?? $product->category);
+        $submittedExpiry = $neverExpires ? null : ($validated['expiry_date'] ?? null);
         unset($validated['stock'], $validated['expiry_date']);
         $validated['status'] = Product::statusForStock($request->input('stock'));
 
         try {
-            $product = DB::transaction(function () use ($product, $validated, $stockDelta, $submittedExpiry) {
+            $product = DB::transaction(function () use ($product, $validated, $stockDelta, $submittedExpiry, $neverExpires) {
                 $product->update($validated);
+
+                if ($neverExpires) {
+                    // Covers a category changing to a non-expiring one on an
+                    // existing product with already-dated batches.
+                    $product = (new InventoryService())->clearAllBatchExpiry($product);
+                }
 
                 if ($stockDelta !== 0) {
                     $product = (new InventoryService())->adjustStock(

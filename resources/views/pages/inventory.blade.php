@@ -261,7 +261,7 @@
 							<input type="number" id="productReorder" name="reorder_level" min="0" value="10" required>
 						</div>
 					</div>
-					<div style="margin-bottom: 18px;">
+					<div style="margin-bottom: 18px;" id="productExpiryWrap">
 						<label for="productExpiry"
 							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Expiration Date</label>
 						<div class="form-input-group">
@@ -271,6 +271,9 @@
 							<input type="date" id="productExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}" required>
 						</div>
 						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Required for every new product.</small>
+					</div>
+					<div style="margin-bottom: 18px; display: none;" id="productNoExpiryNote">
+						<small style="color: var(--color-text-muted); font-size: 0.85rem;">This category doesn't track an expiration date.</small>
 					</div>
 				</div>
 				<div
@@ -351,7 +354,7 @@
 							<input type="number" id="editProductReorder" name="reorder_level" min="0" required>
 						</div>
 					</div>
-						<div style="margin-bottom: 18px;">
+						<div style="margin-bottom: 18px;" id="editProductExpiryWrap">
 							<label for="editProductExpiry"
 								style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Expiration Date</label>
 							<div class="form-input-group">
@@ -360,7 +363,10 @@
 								</svg>
 								<input type="date" id="editProductExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
 							</div>
-							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Only used if you're also increasing Stock above - it becomes that new batch's expiry. Existing batches keep their own dates (see "batches" link under Stock).</small>
+							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Only used if you're also increasing Stock above - it becomes that new batch's expiry. Existing batches keep their own dates (see the badges under Stock).</small>
+						</div>
+						<div style="margin-bottom: 18px; display: none;" id="editProductNoExpiryNote">
+							<small style="color: var(--color-text-muted); font-size: 0.85rem;">This category doesn't track an expiration date - any existing batches will have theirs cleared.</small>
 						</div>
 				</div>
 				<div
@@ -436,6 +442,16 @@
 			var newCategoryWrap = document.getElementById('newCategoryWrap');
 			var newCategoryInput = document.getElementById('productCategoryNew');
 			var categoryValue = document.getElementById('productCategoryValue');
+			var productExpiryWrap = document.getElementById('productExpiryWrap');
+			var productExpiryInput = document.getElementById('productExpiry');
+			var productNoExpiryNote = document.getElementById('productNoExpiryNote');
+
+			// Keep in sync with Product::NON_EXPIRING_CATEGORIES server-side.
+			// Attached to window since the Add and Edit modals' scripts may
+			// not share a closure.
+			window.categoryNeverExpires = function (category) {
+				return (category || '').trim().toLowerCase() === 'medical supplies';
+			};
 
 			/**
 			 * Mirrors whichever control is active into the single hidden field
@@ -448,6 +464,12 @@
 				newCategoryInput.required = addingNew;
 
 				categoryValue.value = addingNew ? newCategoryInput.value.trim() : categorySelect.value;
+
+				var noExpiry = categoryNeverExpires(categoryValue.value);
+				productExpiryWrap.style.display = noExpiry ? 'none' : 'block';
+				productNoExpiryNote.style.display = noExpiry ? 'block' : 'none';
+				productExpiryInput.required = !noExpiry;
+				if (noExpiry) productExpiryInput.value = '';
 			}
 
 			/**
@@ -546,6 +568,14 @@
 				});
 			});
 
+			function syncEditExpiryVisibility() {
+				var noExpiry = categoryNeverExpires($('#editProductCategory').val());
+				$('#editProductExpiryWrap').toggle(!noExpiry);
+				$('#editProductNoExpiryNote').toggle(noExpiry);
+				if (noExpiry) $('#editProductExpiry').val('');
+			}
+			$('#editProductCategory').on('input', syncEditExpiryVisibility);
+
 			// Show edit modal
 			$(document).on('click', '.edit-btn', function () {
 				var productId = $(this).data('id');
@@ -565,6 +595,7 @@
 				$('#editProductPrice').val(productPrice);
 				$('#editProductReorder').val(productReorder);
 				$('#editProductExpiry').val(productExpiry || '');
+				syncEditExpiryVisibility();
 
 				// Set form action
 				$('#editProductForm').attr('action', '/products/' + productId);

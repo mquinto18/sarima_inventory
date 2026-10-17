@@ -239,6 +239,26 @@ class InventoryService
     }
 
     /**
+     * Clears expiry on every one of this product's batches - used when a
+     * product's category changes to one whose items never expire (e.g.
+     * Medical Supplies). Only the expiry dimension changes; quantities are
+     * untouched.
+     */
+    public function clearAllBatchExpiry(Product $product): Product
+    {
+        return DB::transaction(function () use ($product) {
+            $locked = Product::where('id', $product->id)->lockForUpdate()->first();
+
+            ProductBatch::where('product_id', $locked->id)->update(['expiry_date' => null]);
+
+            $locked->expiry_date = null;
+            $locked->save();
+
+            return $locked;
+        });
+    }
+
+    /**
      * Soonest expiry among this product's batches that still have stock
      * left - the cached products.expiry_date is kept equal to this after
      * every mutation.
