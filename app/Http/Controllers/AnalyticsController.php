@@ -104,9 +104,14 @@ class AnalyticsController extends Controller
         }
         $recommendations[] = "Review products with no sales this month as candidates for reduced reorder quantities.";
 
+        $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
+        $notificationCount = $pendingApprovalCount + $reorderCount;
+
         return view('pages.analytics', compact(
             'reorderCount',
             'reorderNotifications',
+            'pendingApprovalCount',
+            'notificationCount',
             'salesYtd',
             'salesYoyChange',
             'forecastAccuracy',
