@@ -878,6 +878,7 @@ class ProductController extends Controller
         // with the status badges in the table below them.
         $criticalLevel = (int) Setting::get('critical_stock_level', 5);
         $lowThreshold = (int) Setting::get('low_stock_threshold', 10);
+        $expiryAlertDays = (int) Setting::get('expiry_alert_days', 30);
 
         $totalProducts = $products->count();
         $criticalStockCount = $products->where('stock', '<=', $criticalLevel)->count();
@@ -925,7 +926,7 @@ class ProductController extends Controller
         
         $pendingApprovalCount = \App\Models\EditRequest::where('status', 'pending')->count();
         $notificationCount = $pendingApprovalCount + $reorderCount;
-        return view('pages.inventory', compact('products', 'totalProducts', 'lowStockCount', 'criticalStockCount', 'totalValue', 'reorderRecommendations', 'reorderCount', 'reorderNotifications', 'pendingApprovalCount', 'notificationCount', 'criticalLevel', 'lowThreshold'));
+        return view('pages.inventory', compact('products', 'totalProducts', 'lowStockCount', 'criticalStockCount', 'totalValue', 'reorderRecommendations', 'reorderCount', 'reorderNotifications', 'pendingApprovalCount', 'notificationCount', 'criticalLevel', 'lowThreshold', 'expiryAlertDays'));
     }
 
     /**

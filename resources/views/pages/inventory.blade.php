@@ -905,16 +905,29 @@
 							<td data-value="{{ strtolower($product->name) }}" style="font-weight: 600; color: var(--color-text);">{{ $product->name }}</td>
 							<td data-value="{{ strtolower($product->category) }}">{{ $product->category }}</td>
 							<td data-value="{{ $product->stock }}">
-								{{ $product->stock }}
-								@if($product->batches->count() > 1)
-									<details style="display: inline-block; margin-left: 6px;">
-										<summary style="display: inline; cursor: pointer; color: var(--color-text-muted); font-size: 0.8rem;">batches</summary>
-										<div style="font-size: 0.78rem; color: var(--color-text-muted); margin-top: 4px;">
-											@foreach($product->batches as $batch)
-												<div>{{ $batch->quantity_remaining }} units{{ $batch->expiry_date ? ' exp. ' . $batch->expiry_date->format('Y-m-d') : ' (no expiry)' }}</div>
-											@endforeach
-										</div>
-									</details>
+								<div>{{ $product->stock }}</div>
+								@if($product->batches->count() > 0)
+									<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 5px;">
+										@foreach($product->batches as $batch)
+											@php
+												// Same severity palette as the Status column, so a batch's
+												// urgency reads consistently with the rest of this table.
+												$batchBadgeClass = 'status-badge--success';
+												if ($batch->expiry_date) {
+													if ($batch->expiry_date->isPast()) {
+														$batchBadgeClass = 'status-badge--danger';
+													} elseif ($batch->expiry_date->lte(now()->addDays($expiryAlertDays))) {
+														$batchBadgeClass = 'status-badge--warning';
+													}
+												} else {
+													$batchBadgeClass = 'status-badge--info';
+												}
+											@endphp
+											<span class="status-badge {{ $batchBadgeClass }}" style="padding: 3px 9px; font-size: 0.72rem; white-space: nowrap; width: fit-content;">
+												{{ $batch->quantity_remaining }} {{ $batch->expiry_date ? 'exp. ' . $batch->expiry_date->format('M d, Y') : '(no expiry)' }}
+											</span>
+										@endforeach
+									</div>
 								@endif
 							</td>
 							<td data-value="{{ $product->price }}">₱{{ number_format($product->price, 2) }}</td>
