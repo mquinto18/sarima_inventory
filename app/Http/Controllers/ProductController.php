@@ -947,7 +947,13 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'price' => 'nullable|numeric',
             'reorder_level' => 'required|integer|min:0',
-            'expiry_date' => 'nullable|date',
+            // Required when creating a new product, unlike update() - this
+            // doesn't conflict with ProductController::disposeExpiredStock()
+            // clearing expiry_date back to null on an existing product once
+            // its batch is fully written off (lines ~806-807): that's a
+            // direct Eloquent update, not a form submission, so it never
+            // goes through this validation rule.
+            'expiry_date' => 'required|date',
         ]);
 
         // Categories can now be typed in freely from the Add Product form, so

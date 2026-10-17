@@ -268,9 +268,9 @@
 							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
 							</svg>
-							<input type="date" id="productExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
+							<input type="date" id="productExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}" required>
 						</div>
-						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Leave blank if this product doesn't expire or the batch isn't tracked.</small>
+						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Required for every new product.</small>
 					</div>
 				</div>
 				<div
