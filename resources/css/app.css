@@ -487,6 +487,27 @@ html {
     box-shadow: var(--shadow-lg);
 }
 
+/* Close (x) button shared by every modal-card header (inventory, suppliers,
+   forecasting). Without resetting `outline`, the browser's default focus
+   rectangle renders as a harsh blue box around the glyph; swap it for the
+   same soft glow used by .form-input-group input:focus so it reads as part
+   of this design system. */
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--color-primary);
+    border-radius: var(--radius-sm);
+    padding: 0 6px;
+    outline: none;
+}
+
+.modal-close-btn:focus-visible {
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
 /* Bootstrap's toast plugin only toggles the .show/.hide classes via JS —
    it never sets inline display. The Bootstrap CDN stylesheet has no base
    rule hiding an untouched .toast, so without this it sits invisible

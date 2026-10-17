@@ -171,9 +171,6 @@
 			@if(isset($forecastAccuracy) && $forecastAccuracy['products_analyzed'] > 0)
 				<a href="javascript:void(0)" data-modal-open="accuracyMetricsModal" class="btn-action ghost">Model Accuracy</a>
 			@endif
-			@if(isset($restockingRecommendations))
-				<a href="javascript:void(0)" data-modal-open="restockingModal" class="btn-action ghost">Restocking</a>
-			@endif
 			@if(isset($seasonalityAnalysis))
 				<a href="javascript:void(0)" data-modal-open="seasonalityModal" class="btn-action ghost">Seasonal Patterns</a>
 				<a href="javascript:void(0)" data-modal-open="modelParamsModal" class="btn-action ghost">Model Parameters</a>
@@ -892,7 +889,7 @@
 					<span title="{{ $methodologyTitle }}" style="cursor: help; font-size: 0.9rem; color: var(--color-text-muted);">&#9432;</span>
 				</h5>
 				<button type="button" data-modal-close aria-label="Close"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+					class="modal-close-btn">&times;</button>
 			</div>
 			<div style="padding: 24px 28px;">
 				<div class="mb-3">
@@ -939,49 +936,6 @@
 
 @endif
 
-{{-- Automated Restocking Recommendations --}}
-@if(isset($restockingRecommendations))
-	<div id="restockingModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true"
-		aria-labelledby="restockingModalTitle">
-		<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 560px;">
-			<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
-				<h5 id="restockingModalTitle" style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">
-					🚨 Automated Restocking Recommendations
-				</h5>
-				<button type="button" data-modal-close aria-label="Close"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
-			</div>
-			<div style="padding: 24px 28px;">
-				@if(count($restockingRecommendations['urgent_restock']) > 0)
-					<div class="alert alert-danger">
-						<h6><strong>🔴 Urgent Restock Required
-								({{ count($restockingRecommendations['urgent_restock']) }} items)</strong></h6>
-						@foreach(array_slice($restockingRecommendations['urgent_restock'], 0, 3) as $item)
-							<div class="d-flex justify-content-between">
-								<span>{{ $item['product_name'] }}</span>
-								<span class="badge badge-danger">{{ $item['current_stock'] }} left</span>
-							</div>
-						@endforeach
-					</div>
-				@endif
-
-				@if(count($restockingRecommendations['monitor_closely']) > 0)
-					<div class="alert alert-warning">
-						<h6><strong>🟡 Monitor Closely
-								({{ count($restockingRecommendations['monitor_closely']) }} items)</strong></h6>
-						@foreach(array_slice($restockingRecommendations['monitor_closely'], 0, 3) as $item)
-							<div class="d-flex justify-content-between">
-								<span>{{ $item['product_name'] }}</span>
-								<span class="badge badge-warning">{{ $item['current_stock'] }} stock</span>
-							</div>
-						@endforeach
-					</div>
-				@endif
-			</div>
-		</div>
-	</div>
-@endif
-
 {{-- Seasonal Pattern Analysis + SARIMA Model Parameters.
      Both stay behind the same isset($seasonalityAnalysis) gate they had when
      they were page cards, so neither appears in a state it did not before. --}}
@@ -994,7 +948,7 @@
 					📅 Seasonal Pattern Analysis
 				</h5>
 				<button type="button" data-modal-close aria-label="Close"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+					class="modal-close-btn">&times;</button>
 			</div>
 			<div style="padding: 24px 28px;">
 				@php
@@ -1050,7 +1004,7 @@
 					⚙️ SARIMA Model Parameters
 				</h5>
 				<button type="button" data-modal-close aria-label="Close"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+					class="modal-close-btn">&times;</button>
 			</div>
 			<div style="padding: 24px 28px;">
 				@if(isset($forecast['model_parameters']))
@@ -1111,7 +1065,7 @@
 
 			// Backdrop only — a click inside the card must not close it. Scoped
 			// to this page's modals so it cannot interfere with other overlays.
-			if (e.target.matches('#accuracyMetricsModal, #restockingModal, #seasonalityModal, #modelParamsModal')) {
+			if (e.target.matches('#accuracyMetricsModal, #seasonalityModal, #modelParamsModal')) {
 				closeModal(e.target);
 			}
 		});
@@ -1119,7 +1073,7 @@
 		document.addEventListener('keydown', function (e) {
 			if (e.key !== 'Escape') return;
 			document
-				.querySelectorAll('#accuracyMetricsModal, #restockingModal, #seasonalityModal, #modelParamsModal')
+				.querySelectorAll('#accuracyMetricsModal, #seasonalityModal, #modelParamsModal')
 				.forEach(function (modal) {
 					if (modal.style.display === 'flex') closeModal(modal);
 				});

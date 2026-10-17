@@ -58,9 +58,6 @@ class SalesController extends Controller
         // Step 6: Generate product-specific demand forecasts for inventory management
         $demandForecast = $this->generateProductDemandForecast($preprocessedData);
 
-        // Step 7: Generate automated restocking recommendations
-        $restockingRecommendations = $this->generateRestockingRecommendations($demandForecast);
-
         // Step 8: Performance metrics for system evaluation
         $forecastAccuracy = $this->calculateForecastAccuracy();
 
@@ -78,7 +75,6 @@ class SalesController extends Controller
             'forecast',
             'demandForecast',
             'seasonalityAnalysis',
-            'restockingRecommendations',
             'forecastAccuracy',
             'preprocessedData',
             'salesTrend',
@@ -787,52 +783,6 @@ class SalesController extends Controller
         }
 
         return $demandForecasts;
-    }
-
-    /**
-     * Step 5: Automated restocking recommendations
-     * Supports efficient stock monitoring and replenishment
-     */
-    private function generateRestockingRecommendations($demandForecasts)
-    {
-        $recommendations = [
-            'urgent_restock' => [],
-            'monitor_closely' => [],
-            'normal_stock' => [],
-            'overstock_risk' => []
-        ];
-
-        foreach ($demandForecasts as $productId => $forecast) {
-            $recommendation = [
-                'product_id' => $productId,
-                'product_name' => $forecast['product_name'],
-                'current_stock' => $forecast['current_stock'],
-                'forecasted_demand' => $forecast['forecasted_demand'],
-                'recommended_action' => '',
-                'priority_level' => 0
-            ];
-
-            // Categorize based on risk and demand
-            if ($forecast['risk_level'] === 'HIGH' || $forecast['days_until_stockout'] <= 7) {
-                $recommendation['recommended_action'] = 'URGENT: Reorder immediately';
-                $recommendation['priority_level'] = 3;
-                $recommendations['urgent_restock'][] = $recommendation;
-            } elseif ($forecast['risk_level'] === 'MEDIUM' || $forecast['days_until_stockout'] <= 14) {
-                $recommendation['recommended_action'] = 'Monitor closely and prepare reorder';
-                $recommendation['priority_level'] = 2;
-                $recommendations['monitor_closely'][] = $recommendation;
-            } elseif ($forecast['current_stock'] > $forecast['forecasted_demand'] * 3) {
-                $recommendation['recommended_action'] = 'Consider reducing orders - potential overstock';
-                $recommendation['priority_level'] = 1;
-                $recommendations['overstock_risk'][] = $recommendation;
-            } else {
-                $recommendation['recommended_action'] = 'Normal stock levels';
-                $recommendation['priority_level'] = 0;
-                $recommendations['normal_stock'][] = $recommendation;
-            }
-        }
-
-        return $recommendations;
     }
 
     /**

@@ -170,7 +170,7 @@
 				style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
 				<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">Add Product</h5>
 				<button type="button" id="closeModal"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+					class="modal-close-btn">&times;</button>
 			</div>
 			<form id="addProductForm" method="POST" action="/products">
 				@csrf
@@ -294,7 +294,7 @@
 				style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
 				<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">Edit Product</h5>
 				<button type="button" id="closeEditModal"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+					class="modal-close-btn">&times;</button>
 			</div>
 			<form id="editProductForm" method="POST">
 				@csrf
@@ -1069,7 +1069,7 @@
 					@endif
 				</div>
 				<button type="button" id="closeReorderRecommendationsModal"
-					style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary); line-height: 1;">&times;</button>
+					class="modal-close-btn">&times;</button>
 			</div>
 			<div style="padding: 24px 28px; overflow-y: auto;">
 				<div style="display: flex; flex-direction: column; gap: 12px;">

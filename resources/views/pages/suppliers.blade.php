@@ -283,7 +283,7 @@
 	<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 500px;">
 		<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
 			<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">Add Supplier</h5>
-			<button type="button" id="closeAddSupplierModal" style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			<button type="button" id="closeAddSupplierModal" class="modal-close-btn">&times;</button>
 		</div>
 		<form id="addSupplierForm" method="POST" action="{{ route('suppliers.store') }}">
 			@csrf
@@ -351,7 +351,7 @@
 	<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 500px;">
 		<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
 			<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">Edit Supplier</h5>
-			<button type="button" id="closeEditSupplierModal" style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			<button type="button" id="closeEditSupplierModal" class="modal-close-btn">&times;</button>
 		</div>
 		<form id="editSupplierForm" method="POST">
 			@csrf
@@ -421,7 +421,7 @@
 	<div class="modal-card" style="position: relative; margin: 3% auto; width: 90%; max-width: 500px;">
 		<div style="padding: 24px 28px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
 			<h5 style="margin: 0; font-weight: 700; font-size: 1.2rem; color: var(--color-primary);">Link Product to Supplier</h5>
-			<button type="button" id="closeLinkProductModal" style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--color-primary);">&times;</button>
+			<button type="button" id="closeLinkProductModal" class="modal-close-btn">&times;</button>
 		</div>
 		<form id="linkProductForm" method="POST" action="{{ route('suppliers.link-products') }}">
 			@csrf
