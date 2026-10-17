@@ -520,6 +520,16 @@ html {
 /* ==========================================================================
    Responsive layout — off-canvas sidebar below 900px
    ========================================================================== */
+/* Base z-index for .sidebar, matching the stacking order documented at
+   .modal-overlay above (header 2000 < sidebar 2500/3000-mobile < modal 9000).
+   Deliberately kept out of sidebar.blade.php's own <style> block: that block
+   renders after this stylesheet in the document, so an unconditional z-index
+   there would always win the cascade over the @media override below,
+   regardless of viewport. */
+.sidebar {
+    z-index: 2500;
+}
+
 .app-main {
     margin-left: 260px;
     margin-top: 70px;

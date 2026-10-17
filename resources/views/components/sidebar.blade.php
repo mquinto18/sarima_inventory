@@ -40,7 +40,12 @@
         overflow-y: auto;
         border-right: none;
         box-shadow: 2px 0 24px 0 rgba(99, 102, 241, 0.07);
-        z-index: 100;
+        /* z-index lives in app.css, not here: this block renders after app.css
+           in the document, so an unconditional z-index here would always beat
+           app.css's @media (max-width: 900px) override at equal specificity,
+           regardless of viewport — which silently pinned the sidebar below
+           the mobile backdrop and ate every nav-link tap while the off-canvas
+           menu was open. */
         transition: width 0.25s ease;
     }
 
