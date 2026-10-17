@@ -384,9 +384,9 @@
 	<div class="row mb-4">
 		<div class="col-12">
 			<div class="stats-card">
-				<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-					<h4 style="margin: 0;">📋 Detailed SARIMA Forecast Analysis</h4>
-					<button type="button" id="forecastViewToggleBtn" class="btn-action ghost" data-view="forecast" style="padding: 6px 16px; font-size: 0.85rem;">🕘 Recent Months</button>
+				<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+					<h4 style="margin: 0; flex: 1 1 auto; min-width: 0;">📋 Detailed SARIMA Forecast Analysis</h4>
+					<button type="button" id="forecastViewToggleBtn" class="btn-action ghost" data-view="forecast" style="flex-shrink: 0; white-space: nowrap; padding: 5px 12px; font-size: 0.78rem; border-radius: var(--radius-pill); border-width: 1px;">🕘 Recent Months</button>
 				</div>
 				<div class="table-responsive">
 					<table class="table table-hover">
