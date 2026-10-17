@@ -82,4 +82,15 @@ class Product extends Model
     {
         return $this->hasMany(StockMovement::class);
     }
+
+    /**
+     * Authoritative source of truth for stock/expiry is product_batches -
+     * `stock` and `expiry_date` above are denormalized caches kept in sync
+     * by InventoryService on every mutation. Only InventoryService should
+     * ever write them directly.
+     */
+    public function batches()
+    {
+        return $this->hasMany(ProductBatch::class);
+    }
 }

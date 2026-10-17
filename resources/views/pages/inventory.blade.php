@@ -360,7 +360,7 @@
 								</svg>
 								<input type="date" id="editProductExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
 							</div>
-							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Leave blank if this product doesn't expire or the batch isn't tracked.</small>
+							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Only used if you're also increasing Stock above - it becomes that new batch's expiry. Existing batches keep their own dates (see "batches" link under Stock).</small>
 						</div>
 				</div>
 				<div
@@ -904,7 +904,19 @@
 							<td data-value="{{ $product->id }}">{{ $product->id }}</td>
 							<td data-value="{{ strtolower($product->name) }}" style="font-weight: 600; color: var(--color-text);">{{ $product->name }}</td>
 							<td data-value="{{ strtolower($product->category) }}">{{ $product->category }}</td>
-							<td data-value="{{ $product->stock }}">{{ $product->stock }}</td>
+							<td data-value="{{ $product->stock }}">
+								{{ $product->stock }}
+								@if($product->batches->count() > 1)
+									<details style="display: inline-block; margin-left: 6px;">
+										<summary style="display: inline; cursor: pointer; color: var(--color-text-muted); font-size: 0.8rem;">batches</summary>
+										<div style="font-size: 0.78rem; color: var(--color-text-muted); margin-top: 4px;">
+											@foreach($product->batches as $batch)
+												<div>{{ $batch->quantity_remaining }} units{{ $batch->expiry_date ? ' exp. ' . $batch->expiry_date->format('Y-m-d') : ' (no expiry)' }}</div>
+											@endforeach
+										</div>
+									</details>
+								@endif
+							</td>
 							<td data-value="{{ $product->price }}">₱{{ number_format($product->price, 2) }}</td>
 							<td data-value="{{ $statusRank }}">
 								@if($product->status === 'In Stock')

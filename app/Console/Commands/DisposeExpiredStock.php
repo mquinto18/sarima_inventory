@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\ProductController;
-use App\Models\Product;
+use App\Models\ProductBatch;
+use App\Services\InventoryService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -21,37 +21,46 @@ class DisposeExpiredStock extends Command
      *
      * @var string
      */
-    protected $description = 'Automatically write off leftover stock for products that have been expired for at least one full day.';
+    protected $description = 'Automatically write off leftover stock for batches that have been expired for at least one full day.';
 
     /**
      * Execute the console command.
+     *
+     * Operates on batches, not products: a product can have one expired
+     * batch and one perfectly good one, and only the expired batch's
+     * remaining quantity should be written off - see
+     * InventoryService::disposeBatch() for how the race against a
+     * concurrent POS sale draining this same batch is handled.
      */
     public function handle()
     {
-        $products = Product::whereNotNull('expiry_date')
+        $expiredBatches = ProductBatch::with('product')
+            ->available()
+            ->whereNotNull('expiry_date')
             ->whereDate('expiry_date', '<=', now()->subDay())
-            ->where('stock', '>', 0)
+            ->orderBy('product_id')
             ->get();
 
         $disposed = [];
         $failed = [];
 
-        foreach ($products as $product) {
-            $expiryDate = $product->expiry_date->format('Y-m-d');
-            $quantity = $product->stock;
+        foreach ($expiredBatches as $batch) {
+            $product = $batch->product;
+            $quantity = $batch->quantity_remaining;
+            $expiryDate = $batch->expiry_date->format('Y-m-d');
 
             try {
-                ProductController::writeOffExpiredStock(
-                    $product,
+                (new InventoryService())->disposeBatch(
+                    $batch,
                     $quantity,
                     null,
-                    "Auto-disposed: expired on {$expiryDate}, past the 1-day grace period"
+                    "Auto-disposed: batch received {$batch->received_at->format('Y-m-d')} expired on {$expiryDate}, past the 1-day grace period"
                 );
 
-                $disposed[] = "{$product->name} ({$quantity} units)";
+                $disposed[] = "{$product->name} ({$quantity} units, batch #{$batch->id})";
             } catch (\Throwable $e) {
-                Log::error("DisposeExpiredStock: failed to auto-dispose product #{$product->id} ({$product->name}): " . $e->getMessage());
-                $failed[] = $product->name;
+                Log::error("DisposeExpiredStock: failed to auto-dispose batch #{$batch->id} for product #{$product->id} ({$product->name}): " . $e->getMessage());
+                $failed[] = "{$product->name} (batch #{$batch->id})";
             }
         }
 

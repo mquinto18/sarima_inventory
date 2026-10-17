@@ -788,7 +788,12 @@ class ProductController extends Controller
     public static function writeOffExpiredStock(Product $product, int $quantity, ?int $userId, string $notes): Product
     {
         return DB::transaction(function () use ($product, $quantity, $userId, $notes) {
-            $product = (new InventoryService())->deductStock(
+            // FEFO is exactly "the earliest-expiring N units", which is what
+            // an admin writing off expired stock wants - InventoryService
+            // recalculates the cached expiry_date from whatever batches
+            // remain afterward, correctly advancing to the next batch even
+            // on a partial write-off.
+            return (new InventoryService())->deductStock(
                 $product,
                 $quantity,
                 'expired_disposal',
@@ -796,18 +801,6 @@ class ProductController extends Controller
                 $userId,
                 $notes
             );
-
-            // The expiry_date describes the batch that was just fully
-            // disposed of - stale once nothing of it is left in stock.
-            // Cleared here (not left for a future receive) so it stops
-            // showing as "Expired" immediately. A partial write-off leaves
-            // it as-is since the remaining units are still that same
-            // expired batch.
-            if ($product->stock === 0) {
-                $product->update(['expiry_date' => null]);
-            }
-
-            return $product;
         });
     }
 
@@ -863,7 +856,7 @@ class ProductController extends Controller
     public function index()
     {
         $products = Product::all();
-        
+
         // Update product status based on stock levels
         foreach ($products as $product) {
             $newStatus = Product::statusForStock($product->stock);
@@ -873,9 +866,12 @@ class ProductController extends Controller
                 $product->update(['status' => $newStatus]);
             }
         }
-        
-        // Refresh products after potential updates
-        $products = Product::all();
+
+        // Refresh products after potential updates, with their FEFO-ordered
+        // batches eager-loaded for the inventory table's batch breakdown.
+        $products = Product::with(['batches' => function ($query) {
+            $query->available()->fefoOrder();
+        }])->get();
         
         // Calculate statistics based on stock levels. These bands must match
         // Product::statusForStock() exactly, or the summary cards will disagree
@@ -967,10 +963,31 @@ class ProductController extends Controller
             $validated['category'] = trim((string) $validated['category']) ?: null;
         }
 
-        // Auto-calculate status based on stock level
-        $validated['status'] = Product::statusForStock($validated['stock']);
+        // stock/expiry_date are set via InventoryService below, not written
+        // directly here - a product created with a cached stock count but no
+        // backing product_batches row would trip InventoryService's drift
+        // guard on its very first sale.
+        $initialStock = $validated['stock'];
+        $initialExpiry = $validated['expiry_date'];
+        unset($validated['stock'], $validated['expiry_date']);
+        $validated['stock'] = 0;
+        $validated['status'] = Product::statusForStock($initialStock);
 
         $product = Product::create($validated);
+
+        if ($initialStock > 0) {
+            $product = (new InventoryService())->addStock(
+                $product,
+                $initialStock,
+                'initial',
+                null,
+                Auth::id(),
+                'Initial stock on product creation',
+                $initialExpiry,
+                null,
+                'initial'
+            );
+        }
 
         // For AJAX: return JSON
         if ($request->wantsJson()) {
@@ -1005,22 +1022,35 @@ class ProductController extends Controller
             'expiry_date' => 'nullable|date',
         ]);
 
-        // Stock changes go through InventoryService so every manual edit still
-        // gets a stock_movements ledger row; other fields update normally.
-        // Both writes happen in one transaction and share the same
-        // catch, so a concurrent sale that pushes the requested stock delta
-        // negative rolls back the whole edit instead of leaving name/price/
-        // status committed against a stock value that was never applied.
+        // Stock and expiry changes go through InventoryService so every
+        // manual edit still gets a stock_movements ledger row and a proper
+        // batch (rather than overwriting the cached expiry_date directly);
+        // other fields update normally. Both writes happen in one
+        // transaction and share the same catch, so a concurrent sale that
+        // pushes the requested stock delta negative rolls back the whole
+        // edit instead of leaving name/price/status committed against a
+        // stock value that was never applied.
         $stockDelta = $validated['stock'] - $product->stock;
-        unset($validated['stock']);
+        // Only meaningful on an increase - a decrease has no new batch to
+        // attach an expiry to, so the submitted value is simply unused then.
+        $submittedExpiry = $validated['expiry_date'] ?? null;
+        unset($validated['stock'], $validated['expiry_date']);
         $validated['status'] = Product::statusForStock($request->input('stock'));
 
         try {
-            $product = DB::transaction(function () use ($product, $validated, $stockDelta) {
+            $product = DB::transaction(function () use ($product, $validated, $stockDelta, $submittedExpiry) {
                 $product->update($validated);
 
                 if ($stockDelta !== 0) {
-                    $product = (new InventoryService())->adjustStock($product, $stockDelta, 'adjustment', null, Auth::id(), 'Manual edit via product form');
+                    $product = (new InventoryService())->adjustStock(
+                        $product,
+                        $stockDelta,
+                        'adjustment',
+                        null,
+                        Auth::id(),
+                        'Manual edit via product form',
+                        $stockDelta > 0 ? $submittedExpiry : null
+                    );
                 }
 
                 return $product;

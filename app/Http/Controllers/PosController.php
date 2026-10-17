@@ -7,6 +7,7 @@ use App\Exceptions\InsufficientStockException;
 use App\Exceptions\ShortPaymentException;
 use App\Models\EditRequest;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Sale;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
@@ -104,16 +105,27 @@ class PosController extends Controller
 
                 foreach ($validated['items'] as $item) {
                     $product = Product::findOrFail($item['product_id']);
+                    $quantity = (int) $item['quantity'];
 
-                    if ($product->expiry_date && $product->expiry_date->isPast()) {
+                    // Checks actual non-expired batch availability rather than
+                    // just the product's nearest-expiry date, so a product
+                    // isn't unsellable just because its oldest batch expired
+                    // while a newer batch still has valid stock.
+                    $availableNonExpired = ProductBatch::where('product_id', $product->id)
+                        ->available()
+                        ->where(function ($q) {
+                            $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', now()->toDateString());
+                        })
+                        ->sum('quantity_remaining');
+
+                    if ($availableNonExpired < $quantity) {
                         throw new ExpiredProductException(
                             $product->id,
                             $product->name,
-                            $product->expiry_date->format('Y-m-d')
+                            optional($product->expiry_date)->format('Y-m-d') ?? 'unknown'
                         );
                     }
 
-                    $quantity = (int) $item['quantity'];
                     $lineTotal = round($quantity * (float) $product->price, 2);
 
                     $lines[] = [$product, $quantity, $lineTotal];
@@ -148,13 +160,19 @@ class PosController extends Controller
                         'user_id' => Auth::id(),
                     ]);
 
-                    // Locked, transactional stock deduction; guards against overselling.
+                    // Locked, transactional stock deduction; guards against
+                    // overselling. excludeExpired=true so FEFO can never
+                    // silently sell from an already-expired batch even if one
+                    // happens to be FEFO-earliest - the availability check
+                    // above already confirmed enough non-expired stock exists.
                     $updated = (new InventoryService())->deductStock(
                         $product,
                         $quantity,
                         'pos_sale',
                         $sale,
-                        Auth::id()
+                        Auth::id(),
+                        null,
+                        true
                     );
 
                     $updatedStock[$updated->id] = $updated->stock;

@@ -240,13 +240,12 @@ class PurchaseOrderController extends Controller
         ]);
 
         // Required whenever that same line is actually receiving stock
-        // (qty > 0) - newly arrived stock has its own expiry, and since this
-        // app tracks one expiry_date per product rather than per batch,
-        // skipping it would silently leave the old batch's date attached to
-        // the new one. Done as a manual pass after validate() rather than a
-        // validation rule: Laravel skips non-required rules (including
-        // closures) entirely when a field is empty, which made a closure-
-        // based "required if quantity > 0" check never actually run.
+        // (qty > 0) - each delivery becomes its own batch with its own
+        // expiry (see InventoryService::addStock()), so there's no sensible
+        // default to fall back to. Done as a manual pass after validate()
+        // rather than a validation rule: Laravel skips non-required rules
+        // (including closures) entirely when a field is empty, which made a
+        // closure-based "required if quantity > 0" check never actually run.
         $missingExpiry = [];
 
         foreach ($validated['items'] ?? [] as $itemId => $itemInput) {
@@ -286,16 +285,21 @@ class PurchaseOrderController extends Controller
                     continue;
                 }
 
-                $inventoryService->addStock($item->product, $qty, 'purchase_receipt', $purchaseOrder, Auth::id());
+                // Creates a new batch rather than merging into existing stock,
+                // so this delivery's expiry stays distinguishable from
+                // whatever was already in stock - see InventoryService::addStock().
+                $inventoryService->addStock(
+                    $item->product,
+                    $qty,
+                    'purchase_receipt',
+                    $purchaseOrder,
+                    Auth::id(),
+                    null,
+                    $itemsInput[$item->id]['expiry_date'] ?? null,
+                    $item->id,
+                    'purchase_receipt'
+                );
                 $item->increment('quantity_received', $qty);
-
-                // The new stock replaces whatever batch was there before
-                // (this app tracks one expiry_date per product, not per
-                // batch) - overwrite intentionally, including clearing a
-                // null left behind by a full expired-stock write-off.
-                if (!empty($itemsInput[$item->id]['expiry_date'])) {
-                    $item->product->update(['expiry_date' => $itemsInput[$item->id]['expiry_date']]);
-                }
 
                 // quantity_received is only a running total, so the individual
                 // delivery is recorded here. Written inside the same transaction
