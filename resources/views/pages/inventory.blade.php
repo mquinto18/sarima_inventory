@@ -218,15 +218,12 @@
 						<label for="productStock"
 							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Stock</label>
 						<div class="form-input-group">
-							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 7l9 5 9-5" stroke-linecap="round" stroke-linejoin="round" />
+							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+								<polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+								<line x1="12" y1="22.08" x2="12" y2="12" />
 							</svg>
-							<select id="productStock" name="stock" required>
-								<option value="">Select Stock</option>
-								@for($i = 1; $i <= 500; $i++)
-									<option value="{{ $i }}">{{ $i }}</option>
-								@endfor
-							</select>
+							<input type="number" id="productStock" name="stock" min="0" placeholder="Enter stock quantity" required>
 						</div>
 						<small style="color: var(--color-text-muted); font-size: 0.92rem;">Status will be automatically set: Critical (≤{{ $criticalLevel }}),
 							Low Stock ({{ $criticalLevel + 1 }}-{{ $lowThreshold }}), In Stock (>{{ $lowThreshold }})</small>
@@ -312,8 +309,10 @@
 						<label for="editProductStock"
 							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Stock</label>
 						<div class="form-input-group">
-							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 7l9 5 9-5" stroke-linecap="round" stroke-linejoin="round" />
+							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+								<polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+								<line x1="12" y1="22.08" x2="12" y2="12" />
 							</svg>
 							<input type="number" id="editProductStock" name="stock" min="0" required>
 						</div>
