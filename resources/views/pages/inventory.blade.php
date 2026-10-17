@@ -937,28 +937,55 @@
 							<td data-value="{{ strtolower($product->category) }}">{{ $product->category }}</td>
 							<td data-value="{{ $product->stock }}">
 								<div>{{ $product->stock }}</div>
-								@if($product->batches->count() > 0)
-									<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 5px;">
+								@if($product->batches->count() === 1)
+									@php
+										// Same severity palette as the Status column, so a batch's
+										// urgency reads consistently with the rest of this table.
+										$batch = $product->batches->first();
+										$batchBadgeClass = 'status-badge--success';
+										if ($batch->expiry_date) {
+											if ($batch->expiry_date->isPast()) {
+												$batchBadgeClass = 'status-badge--danger';
+											} elseif ($batch->expiry_date->lte(now()->addDays($expiryAlertDays))) {
+												$batchBadgeClass = 'status-badge--warning';
+											}
+										} else {
+											$batchBadgeClass = 'status-badge--info';
+										}
+									@endphp
+									<span class="status-badge {{ $batchBadgeClass }}" style="display: inline-block; margin-top: 5px; padding: 3px 9px; font-size: 0.72rem; white-space: nowrap; width: fit-content;">
+										{{ $batch->quantity_remaining }} {{ $batch->expiry_date ? 'exp. ' . $batch->expiry_date->format('M d, Y') : '(no expiry)' }}
+									</span>
+								@elseif($product->batches->count() > 1)
+									@php
+										// Dropdown colored by the FEFO-earliest (most urgent) batch,
+										// so the collapsed control still reads at a glance - a native
+										// <select> rather than a custom popover, since this column
+										// sits inside a horizontally-scrolling table container that
+										// would otherwise clip an absolutely-positioned dropdown.
+										$firstBatch = $product->batches->first();
+										$selectClass = 'status-badge--success';
+										if ($firstBatch->expiry_date) {
+											if ($firstBatch->expiry_date->isPast()) {
+												$selectClass = 'status-badge--danger';
+											} elseif ($firstBatch->expiry_date->lte(now()->addDays($expiryAlertDays))) {
+												$selectClass = 'status-badge--warning';
+											}
+										} else {
+											$selectClass = 'status-badge--info';
+										}
+										$selectColors = [
+											'status-badge--danger' => ['bg' => 'var(--color-danger-bg)', 'text' => 'var(--color-danger-text)'],
+											'status-badge--warning' => ['bg' => 'var(--color-warning-bg)', 'text' => 'var(--color-warning-text)'],
+											'status-badge--success' => ['bg' => 'var(--color-success-bg)', 'text' => 'var(--color-success-text)'],
+											'status-badge--info' => ['bg' => 'var(--color-info-bg)', 'text' => 'var(--color-info-text)'],
+										][$selectClass];
+									@endphp
+									<select title="{{ $product->batches->count() }} batches, soonest expiry first" style="margin-top: 5px; max-width: 170px; padding: 3px 6px; font-size: 0.72rem; font-weight: 600; font-family: inherit; border: none; border-radius: var(--radius-sm); cursor: pointer; background: {{ $selectColors['bg'] }}; color: {{ $selectColors['text'] }};">
 										@foreach($product->batches as $batch)
-											@php
-												// Same severity palette as the Status column, so a batch's
-												// urgency reads consistently with the rest of this table.
-												$batchBadgeClass = 'status-badge--success';
-												if ($batch->expiry_date) {
-													if ($batch->expiry_date->isPast()) {
-														$batchBadgeClass = 'status-badge--danger';
-													} elseif ($batch->expiry_date->lte(now()->addDays($expiryAlertDays))) {
-														$batchBadgeClass = 'status-badge--warning';
-													}
-												} else {
-													$batchBadgeClass = 'status-badge--info';
-												}
-											@endphp
-											<span class="status-badge {{ $batchBadgeClass }}" style="padding: 3px 9px; font-size: 0.72rem; white-space: nowrap; width: fit-content;">
-												{{ $batch->quantity_remaining }} {{ $batch->expiry_date ? 'exp. ' . $batch->expiry_date->format('M d, Y') : '(no expiry)' }}
-											</span>
+											<option>{{ $batch->quantity_remaining }} {{ $batch->expiry_date ? 'exp. ' . $batch->expiry_date->format('M d, Y') : '(no expiry)' }}</option>
 										@endforeach
-									</div>
+									</select>
 								@endif
 							</td>
 							<td data-value="{{ $product->price }}">₱{{ number_format($product->price, 2) }}</td>
