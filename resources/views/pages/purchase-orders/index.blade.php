@@ -63,7 +63,6 @@
 				<option value="cancelled">Cancelled</option>
 			</select>
 		</div>
-		<button type="button" onclick="applyPoFilters()" class="btn-action edit" style="padding: 10px 18px;">Filter</button>
 	</div>
 
 	<div class="data-table-container">
