@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
+use App\Models\ProductSupplier;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -82,7 +84,23 @@ class SettingsController extends Controller
         Setting::set('stp_max_order_value', $validated['stp_max_order_value']);
         Setting::set('stp_max_qty_per_product', $validated['stp_max_qty_per_product']);
         Setting::set('default_lead_time_days', $validated['default_lead_time_days']);
-        Setting::set('default_markup_percent', $validated['default_markup_percent']);
+
+        // Recalculated here too (not just on upsertProductSupplierLink()),
+        // so changing the global rate doesn't require re-saving every
+        // product's supplier link to actually take effect. Same formula as
+        // there: cost x (1 + markup%), driven only by each product's
+        // primary supplier (never a secondary one).
+        $oldMarkup = (float) Setting::get('default_markup_percent');
+        $newMarkup = $validated['default_markup_percent'];
+        Setting::set('default_markup_percent', $newMarkup);
+
+        if ($oldMarkup != $newMarkup) {
+            ProductSupplier::where('is_primary', true)->get()->each(function ($link) use ($newMarkup) {
+                Product::where('id', $link->product_id)->update([
+                    'price' => round($link->cost_price * (1 + $newMarkup / 100), 2),
+                ]);
+            });
+        }
 
         return redirect()->route('settings')->with('success', 'Settings updated successfully.');
     }
