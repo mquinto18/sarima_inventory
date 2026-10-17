@@ -1043,21 +1043,35 @@ class ProductController extends Controller
         $stockDelta = $validated['stock'] - $product->stock;
         // Some categories never expire (e.g. Medical Supplies) - any
         // submitted expiry is ignored for those rather than attached to a
-        // new batch. Only meaningful on a stock increase otherwise - a
-        // decrease has no new batch to attach an expiry to.
+        // new batch.
         $neverExpires = Product::categoryNeverExpires($validated['category'] ?? $product->category);
         $submittedExpiry = $neverExpires ? null : ($validated['expiry_date'] ?? null);
+        // Only when there's exactly one existing batch can a single
+        // "Expiration Date" field unambiguously mean "fix this batch's date"
+        // rather than "here's a new delivery" - with 0 or 2+ batches it's
+        // either nothing to correct or genuinely ambiguous which one is meant.
+        $singleExistingBatch = $stockDelta <= 0
+            ? $product->batches()->available()->take(2)->get()
+            : collect();
+        $correctingSingleBatch = !$neverExpires && $stockDelta <= 0 && $singleExistingBatch->count() === 1
+            ? $singleExistingBatch->first()
+            : null;
         unset($validated['stock'], $validated['expiry_date']);
         $validated['status'] = Product::statusForStock($request->input('stock'));
 
         try {
-            $product = DB::transaction(function () use ($product, $validated, $stockDelta, $submittedExpiry, $neverExpires) {
+            $product = DB::transaction(function () use ($product, $validated, $stockDelta, $submittedExpiry, $neverExpires, $correctingSingleBatch) {
                 $product->update($validated);
 
                 if ($neverExpires) {
                     // Covers a category changing to a non-expiring one on an
                     // existing product with already-dated batches.
                     $product = (new InventoryService())->clearAllBatchExpiry($product);
+                } elseif ($correctingSingleBatch) {
+                    // Not a new delivery (stock isn't increasing) - the
+                    // submitted date corrects this one existing batch
+                    // directly instead of being silently ignored.
+                    $product = (new InventoryService())->setBatchExpiry($correctingSingleBatch, $submittedExpiry);
                 }
 
                 if ($stockDelta !== 0) {

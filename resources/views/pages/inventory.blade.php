@@ -363,7 +363,7 @@
 								</svg>
 								<input type="date" id="editProductExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
 							</div>
-							<small style="color: var(--color-text-muted); font-size: 0.85rem;">Only used if you're also increasing Stock above - it becomes that new batch's expiry. Existing batches keep their own dates (see the badges under Stock).</small>
+							<small style="color: var(--color-text-muted); font-size: 0.85rem;">If you're increasing Stock above, this becomes the new delivery's expiry. Otherwise, it corrects the existing batch's date directly - only works when there's exactly one batch (see Stock); with multiple batches it has no effect.</small>
 						</div>
 						<div style="margin-bottom: 18px; display: none;" id="editProductNoExpiryNote">
 							<small style="color: var(--color-text-muted); font-size: 0.85rem;">This category doesn't track an expiration date - any existing batches will have theirs cleared.</small>

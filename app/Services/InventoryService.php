@@ -239,6 +239,28 @@ class InventoryService
     }
 
     /**
+     * Directly corrects one existing batch's expiry date without touching
+     * its quantity - for fixing bad/placeholder data on stock already on
+     * hand, not for recording a new delivery (which always goes through
+     * addStock() and creates its own batch instead).
+     */
+    public function setBatchExpiry(ProductBatch $batch, ?string $expiryDate): Product
+    {
+        return DB::transaction(function () use ($batch, $expiryDate) {
+            $product = Product::where('id', $batch->product_id)->lockForUpdate()->first();
+            $lockedBatch = ProductBatch::where('id', $batch->id)->lockForUpdate()->first();
+
+            $lockedBatch->expiry_date = $expiryDate;
+            $lockedBatch->save();
+
+            $product->expiry_date = $this->recalculateSoonestExpiry($product);
+            $product->save();
+
+            return $product;
+        });
+    }
+
+    /**
      * Clears expiry on every one of this product's batches - used when a
      * product's category changes to one whose items never expire (e.g.
      * Medical Supplies). Only the expiry dimension changes; quantities are
