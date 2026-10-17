@@ -386,10 +386,7 @@
 			<div class="stats-card">
 				<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
 					<h4 style="margin: 0;">📋 Detailed SARIMA Forecast Analysis</h4>
-					<div id="forecastViewToggle" style="display: flex; gap: 8px;">
-						<button type="button" class="btn-action edit forecast-view-btn" data-view="forecast" style="padding: 6px 16px; font-size: 0.85rem;">🔮 Forecast</button>
-						<button type="button" class="btn-action ghost forecast-view-btn" data-view="recent" style="padding: 6px 16px; font-size: 0.85rem;">🕘 Recent Months</button>
-					</div>
+					<button type="button" id="forecastViewToggleBtn" class="btn-action ghost" data-view="forecast" style="padding: 6px 16px; font-size: 0.85rem;">🕘 Recent Months</button>
 				</div>
 				<div class="table-responsive">
 					<table class="table table-hover">
@@ -470,37 +467,9 @@
 						<tbody id="recentRows" style="display: none;">
 							@if(isset($forecast['months'], $forecast['historical']))
 								@foreach($forecast['months'] as $idx => $month)
-									@php
-										$actual = $forecast['historical'][$idx] ?? null;
-										$previous = $idx > 0 ? ($forecast['historical'][$idx - 1] ?? null) : null;
-										$change = ($previous && $previous > 0 && $actual !== null)
-											? (($actual - $previous) / $previous) * 100
-											: null;
-
-										if ($change === null) {
-											$trendLabel = 'No Prior Data';
-											$trendClass = 'badge-secondary';
-										} elseif ($change > 5) {
-											$trendLabel = 'Growth';
-											$trendClass = 'badge-success';
-										} elseif ($change < -5) {
-											$trendLabel = 'Decline';
-											$trendClass = 'badge-danger';
-										} else {
-											$trendLabel = 'Stable';
-											$trendClass = 'badge-warning';
-										}
-									@endphp
 									<tr>
 										<td><strong>{{ Carbon\Carbon::parse($month)->format('M Y') }}</strong></td>
-										<td>₱{{ number_format($actual ?? 0, 2) }}</td>
-										<td><span class="text-muted">Actual - no forecast range</span></td>
-										<td>
-											<span class="badge {{ $trendClass }}">{{ $trendLabel }}</span>
-											@if($change !== null)
-												<span class="text-muted" style="font-size: 0.82rem;">({{ $change >= 0 ? '+' : '' }}{{ number_format($change, 1) }}%)</span>
-											@endif
-										</td>
+										<td>₱{{ number_format($forecast['historical'][$idx] ?? 0, 2) }}</td>
 									</tr>
 								@endforeach
 							@endif
@@ -513,7 +482,7 @@
 
 	<script>
 		(function () {
-			var buttons = document.querySelectorAll('.forecast-view-btn');
+			var toggleBtn = document.getElementById('forecastViewToggleBtn');
 			var forecastRows = document.getElementById('forecastRows');
 			var recentRows = document.getElementById('recentRows');
 			var revenueHeader = document.getElementById('forecastRevenueHeader');
@@ -526,20 +495,25 @@
 				forecastRows.style.display = isForecast ? '' : 'none';
 				recentRows.style.display = isForecast ? 'none' : '';
 				revenueHeader.textContent = isForecast ? 'Predicted Revenue' : 'Actual Revenue';
-				confidenceHeader.textContent = isForecast ? 'Confidence Range (95%)' : 'Forecast Range';
-				recommendationHeader.textContent = isForecast ? 'Recommendation' : 'Trend vs Prior Month';
+				// Confidence Range/Recommendation only apply to a forecast -
+				// the Recent view is just Month + Actual Revenue.
+				confidenceHeader.style.display = isForecast ? '' : 'none';
+				recommendationHeader.style.display = isForecast ? '' : 'none';
 
-				buttons.forEach(function (btn) {
-					var active = btn.dataset.view === view;
-					btn.classList.toggle('edit', active);
-					btn.classList.toggle('ghost', !active);
-				});
+				toggleBtn.dataset.view = view;
+				if (isForecast) {
+					toggleBtn.textContent = '🕘 Recent Months';
+					toggleBtn.classList.add('ghost');
+					toggleBtn.classList.remove('edit');
+				} else {
+					toggleBtn.textContent = '← Back to Forecast';
+					toggleBtn.classList.add('edit');
+					toggleBtn.classList.remove('ghost');
+				}
 			}
 
-			buttons.forEach(function (btn) {
-				btn.addEventListener('click', function () {
-					showView(btn.dataset.view);
-				});
+			toggleBtn.addEventListener('click', function () {
+				showView(toggleBtn.dataset.view === 'forecast' ? 'recent' : 'forecast');
 			});
 		})();
 	</script>
