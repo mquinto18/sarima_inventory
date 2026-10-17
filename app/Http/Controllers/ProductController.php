@@ -960,7 +960,13 @@ class ProductController extends Controller
             // its batch is fully written off (lines ~806-807): that's a
             // direct Eloquent update, not a form submission, so it never
             // goes through this validation rule.
-            'expiry_date' => $neverExpires ? 'nullable|date' : 'required|date',
+            // before_or_equal backstops the date input's own max attribute
+            // (a malformed year like "202000" is still a syntactically valid
+            // date PHP will parse) - requests never go through the browser
+            // at all, so that client-side constraint alone isn't enough.
+            'expiry_date' => $neverExpires
+                ? 'nullable|date'
+                : 'required|date|before_or_equal:' . now()->addYears(20)->format('Y-m-d'),
         ]);
 
         if ($neverExpires) {
@@ -1029,7 +1035,11 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'price' => 'nullable|numeric',
             'reorder_level' => 'required|integer|min:0',
-            'expiry_date' => 'nullable|date',
+            // before_or_equal backstops the date input's own max attribute -
+            // a malformed year like "202000" is still a syntactically valid
+            // date PHP will parse, and requests never go through the
+            // browser at all, so that client-side constraint alone isn't enough.
+            'expiry_date' => 'nullable|date|before_or_equal:' . now()->addYears(20)->format('Y-m-d'),
         ]);
 
         // Stock and expiry changes go through InventoryService so every

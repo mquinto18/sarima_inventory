@@ -268,7 +268,7 @@
 							<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
 							</svg>
-							<input type="date" id="productExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}" required>
+							<input type="date" id="productExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}" max="{{ now()->addYears(20)->format('Y-m-d') }}" required>
 						</div>
 						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Required for every new product.</small>
 					</div>
@@ -361,7 +361,7 @@
 								<svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" />
 								</svg>
-								<input type="date" id="editProductExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}">
+								<input type="date" id="editProductExpiry" name="expiry_date" min="{{ now()->format('Y-m-d') }}" max="{{ now()->addYears(20)->format('Y-m-d') }}">
 							</div>
 							<small style="color: var(--color-text-muted); font-size: 0.85rem;">If you're increasing Stock above, this becomes the new delivery's expiry. Otherwise, it corrects the existing batch's date directly - only works when there's exactly one batch (see Stock); with multiple batches it has no effect.</small>
 						</div>
