@@ -31,16 +31,20 @@ class AnalyticsController extends Controller
         // ---- KPI: Forecast accuracy (reuses the same calculation as the dashboard) ----
         $forecastAccuracy = ProductController::calculateForecastAccuracy();
 
-        // ---- KPI: Inventory turnover (units sold this month / average units on hand) ----
+        // ---- KPI: Inventory turnover (units sold this month / total units on hand) ----
+        // Dividing by the average of one product's stock instead of the sum
+        // across every product inflated this by roughly the product count
+        // (e.g. 64x) - a store moving ~10% of its stock in a month reported
+        // as turning its whole inventory over 6-7 times in that same month.
         $unitsSoldThisMonth = Sale::whereYear('sale_date', $now->year)
             ->whereMonth('sale_date', $now->month)
             ->sum('quantity_sold');
         $unitsSoldLastMonth = Sale::whereYear('sale_date', $lastMonth->year)
             ->whereMonth('sale_date', $lastMonth->month)
             ->sum('quantity_sold');
-        $averageStock = max(1, Product::avg('stock'));
-        $inventoryTurnover = round($unitsSoldThisMonth / $averageStock, 2);
-        $inventoryTurnoverLastMonth = round($unitsSoldLastMonth / $averageStock, 2);
+        $totalStock = max(1, Product::sum('stock'));
+        $inventoryTurnover = round($unitsSoldThisMonth / $totalStock, 2);
+        $inventoryTurnoverLastMonth = round($unitsSoldLastMonth / $totalStock, 2);
 
         // ---- Revenue this month vs last month (for the key metrics table) ----
         $revenueThisMonth = Sale::whereYear('sale_date', $now->year)->whereMonth('sale_date', $now->month)->sum('total_amount');
