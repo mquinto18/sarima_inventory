@@ -185,7 +185,9 @@
                                     @if($remaining > 0)
                                         <input type="date" class="receive-expiry-input" name="items[{{ $item->id }}][expiry_date]"
                                             data-item-id="{{ $item->id }}" required
+                                            min="{{ now()->addMonths(3)->format('Y-m-d') }}"
                                             style="padding: 8px 10px; border-radius: var(--radius-sm); border: 1.5px solid #e5e7eb;">
+                                        <small style="display: block; color: var(--color-text-muted); font-size: 0.78rem; margin-top: 4px;">At least 3 months out</small>
                                     @endif
                                 </td>
                             @endif

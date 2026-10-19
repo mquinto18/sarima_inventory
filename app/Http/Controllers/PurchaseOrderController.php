@@ -290,7 +290,13 @@ class PurchaseOrderController extends Controller
         $validated = $request->validate([
             'items' => 'array',
             'items.*.quantity_received' => 'nullable|integer|min:0',
-            'items.*.expiry_date' => 'nullable|date',
+            // Stock arriving with less than 3 months of shelf life left (or
+            // already expired) is rejected outright rather than accepted and
+            // flagged later - it would otherwise sit in inventory only to be
+            // written off by DisposeExpiredStock days or weeks after receipt.
+            'items.*.expiry_date' => 'nullable|date|after_or_equal:' . now()->addMonths(3)->format('Y-m-d'),
+        ], [
+            'items.*.expiry_date.after_or_equal' => 'Expiry date must be at least 3 months from today - this delivery cannot be received as entered.',
         ]);
 
         // Required whenever that same line is actually receiving stock
