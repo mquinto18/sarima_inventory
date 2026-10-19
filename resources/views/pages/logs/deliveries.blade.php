@@ -16,7 +16,7 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Date &amp; Time</th>
+                        <th>Timestamp</th>
                         <th>Purchase Order</th>
                         <th>Supplier</th>
                         <th>Products</th>
@@ -40,7 +40,7 @@
                         @endphp
                         <tr>
                             {{-- Stored in UTC; shown in Asia/Manila so it matches the calendar day actually picked in the From/To filter above. --}}
-                            <td>{{ $batch->received_at?->copy()->setTimezone('Asia/Manila')->format('M d, Y g:i A') ?? '—' }}</td>
+                            <td class="log-mono">{{ $batch->received_at?->copy()->setTimezone('Asia/Manila')->format('m/d/y H:i:s') ?? '—' }}</td>
                             <td>
                                 @if($first?->purchaseOrder)
                                     <a href="{{ route('purchase-orders.show', $first->purchaseOrder->id) }}"

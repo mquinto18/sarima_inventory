@@ -16,7 +16,7 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Date &amp; Time</th>
+                        <th>Timestamp</th>
                         <th>Transaction</th>
                         <th>Cashier</th>
                         <th style="text-align: right;">Items</th>
@@ -30,7 +30,7 @@
                     @forelse($transactions as $txn)
                         <tr>
                             {{-- occurred_at is stored in UTC; shown in Asia/Manila so it matches the calendar day actually picked in the From/To filter above. --}}
-                            <td>{{ \Carbon\Carbon::parse($txn->occurred_at, 'UTC')->setTimezone('Asia/Manila')->format('M d, Y g:i A') }}</td>
+                            <td class="log-mono">{{ \Carbon\Carbon::parse($txn->occurred_at, 'UTC')->setTimezone('Asia/Manila')->format('m/d/y H:i:s') }}</td>
                             <td class="log-mono">{{ strtoupper(substr($txn->pos_transaction_id, 0, 8)) }}</td>
                             <td>
                                 {{-- Null for the transactions recorded before the
