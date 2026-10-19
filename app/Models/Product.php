@@ -20,11 +20,20 @@ class Product extends Model
         'price',
         'reorder_level',
         'expiry_date',
+        'vat_type',
+        'senior_pwd_eligible',
     ];
 
     protected $casts = [
         'expiry_date' => 'date',
+        'senior_pwd_eligible' => 'boolean',
     ];
+
+    /**
+     * BIR VAT classifications a product's shelf price can carry.
+     * T = VATable, X = VAT-exempt, Z = zero-rated.
+     */
+    public const VAT_TYPES = ['T', 'X', 'Z'];
 
     /**
      * Categories whose items never expire (e.g. gauze, alcohol, thermometers),

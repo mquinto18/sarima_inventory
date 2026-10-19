@@ -190,6 +190,23 @@
 		padding: 30px 10px;
 	}
 
+	.pos-discount-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--color-danger);
+		padding: 4px 4px;
+	}
+
+	.pos-discount-toggle {
+		padding: 12px 4px;
+		border-top: 1px dashed var(--color-border);
+		border-bottom: 1px dashed var(--color-border);
+		margin: 10px 0;
+	}
+
 	.pos-tender {
 		padding: 4px 4px 14px;
 	}
@@ -336,6 +353,40 @@
 				<span id="posCartTotal">&#8369;0.00</span>
 			</div>
 
+			<div class="pos-discount-row" id="posDiscountSummaryRow" style="display:none;">
+				<span>Less: Senior/PWD Discount</span>
+				<span id="posDiscountValue">&#8369;0.00</span>
+			</div>
+			<div class="pos-cart-total-row" id="posAmountDueRow" style="display:none;">
+				<span>Amount Due</span>
+				<span id="posAmountDueValue">&#8369;0.00</span>
+			</div>
+
+			<div class="pos-discount-toggle">
+				<label style="display:flex; align-items:center; gap: 8px; font-weight:600; cursor:pointer;">
+					<input type="checkbox" id="posDiscountEnabled" style="width:16px; height:16px;">
+					Senior Citizen / PWD Discount
+				</label>
+
+				<div id="posDiscountFields" style="display:none;">
+					<div class="form-input-group" style="margin-top: 10px;">
+						<select id="posDiscountType">
+							<option value="senior">Senior Citizen</option>
+							<option value="pwd">PWD</option>
+						</select>
+					</div>
+					<div class="form-input-group" style="margin-top: 10px;">
+						<input type="text" id="posDiscountIdNumber" placeholder="ID Number" autocomplete="off">
+					</div>
+					<div class="form-input-group" style="margin-top: 10px;">
+						<input type="text" id="posDiscountCustomerName" placeholder="Customer Name" autocomplete="off">
+					</div>
+					<small style="color: var(--color-text-muted); font-size: 0.8rem; display:block; margin-top: 6px;">
+						Applies only to eligible items in the cart.
+					</small>
+				</div>
+			</div>
+
 			<div class="pos-tender">
 				<label for="posAmountTendered" class="pos-tender__label">Amount Received</label>
 				<div class="form-input-group">
@@ -378,9 +429,75 @@
 		});
 
 		var allProducts = @json($products);
-		var cart = []; // { product_id, name, sku, price, qty, stock }
+		var taxMode = {!! json_encode($taxMode) !!};
+		var vatRate = {{ $vatRate }};
+		var cart = []; // { product_id, name, sku, price, qty, stock, vat_type, senior_pwd_eligible }
 		var cartTotal = 0;
+		var amountDue = 0;
 		var searchTimer = null;
+
+		// Mirrors App\Services\VatCalculator::calculateDiscountedLine() for a
+		// live preview only - the server recomputes everything from scratch
+		// and is the only source of truth for what's actually charged.
+		function discountedLineAmountDue(totalCents, vatType) {
+			var baseCents = totalCents;
+			if (taxMode === 'VAT' && vatType === 'T') {
+				var vatExclusiveCents = Math.round(totalCents / (1 + vatRate / 100));
+				baseCents = vatExclusiveCents;
+			}
+			var discountCents = Math.round(baseCents * 0.20);
+			return { amountDueCents: baseCents - discountCents, discountCents: discountCents };
+		}
+
+		function discountEnabled() {
+			return $('#posDiscountEnabled').is(':checked');
+		}
+
+		function computeTotals() {
+			var totalCents = 0;
+			var amountDueCents = 0;
+			var discountCents = 0;
+			var discounting = discountEnabled();
+
+			cart.forEach(function (item) {
+				var lineTotalCents = Math.round(item.qty * item.price * 100);
+				totalCents += lineTotalCents;
+
+				if (discounting && item.senior_pwd_eligible) {
+					var result = discountedLineAmountDue(lineTotalCents, item.vat_type);
+					amountDueCents += result.amountDueCents;
+					discountCents += result.discountCents;
+				} else {
+					amountDueCents += lineTotalCents;
+				}
+			});
+
+			return {
+				totalAmount: round2(totalCents / 100),
+				amountDue: round2(amountDueCents / 100),
+				discountAmount: round2(discountCents / 100)
+			};
+		}
+
+		function updateTotalsDisplay() {
+			var totals = computeTotals();
+			cartTotal = totals.totalAmount;
+			amountDue = totals.amountDue;
+
+			$('#posCartTotal').text(peso(totals.totalAmount));
+
+			if (totals.discountAmount > 0) {
+				$('#posDiscountSummaryRow').show();
+				$('#posDiscountValue').text(peso(totals.discountAmount));
+				$('#posAmountDueRow').show();
+				$('#posAmountDueValue').text(peso(totals.amountDue));
+			} else {
+				$('#posDiscountSummaryRow').hide();
+				$('#posAmountDueRow').hide();
+			}
+
+			updateChange();
+		}
 
 		function peso(value) {
 			return '₱' + Number(value).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
@@ -557,7 +674,9 @@
 					sku: product.sku,
 					price: Number(product.price),
 					qty: 1,
-					stock: stock
+					stock: stock,
+					vat_type: product.vat_type || 'T',
+					senior_pwd_eligible: !!product.senior_pwd_eligible
 				});
 			}
 
@@ -602,17 +721,12 @@
 
 			if (!cart.length) {
 				$body.append('<tr id="posCartEmptyRow"><td colspan="5" class="pos-cart-empty">Cart is empty. Add a product from the left panel.</td></tr>');
-				$('#posCartTotal').text(peso(0));
-				cartTotal = 0;
-				updateChange();
+				updateTotalsDisplay();
 				return;
 			}
 
-			var total = 0;
-
 			cart.forEach(function (item) {
 				var subtotal = item.qty * item.price;
-				total += subtotal;
 
 				var $row = $('<tr>').attr('data-product-id', item.product_id).html(
 					'<td>' + escapeHtml(item.name) + (item.sku ? '<div style="font-size:0.8rem; color: var(--color-text-muted);">' + escapeHtml(item.sku) + '</div>' : '') + '</td>' +
@@ -631,9 +745,7 @@
 				$body.append($row);
 			});
 
-			$('#posCartTotal').text(peso(total));
-			cartTotal = round2(total);
-			updateChange();
+			updateTotalsDisplay();
 		}
 
 		// Money is compared and displayed in centavos-rounded floats; rounding at
@@ -661,7 +773,7 @@
 
 			$('#posQuickCash button').prop('disabled', !hasCart);
 
-			var diff = hasCart && tendered !== null ? round2(tendered - cartTotal) : null;
+			var diff = hasCart && tendered !== null ? round2(tendered - amountDue) : null;
 
 			// Not enough cash yet is treated the same as nothing entered: the
 			// change stays at zero and Checkout stays disabled.
@@ -684,7 +796,7 @@
 			var $btn = $(this);
 
 			if ($btn.is('[data-exact]')) {
-				$('#posAmountTendered').val(cartTotal.toFixed(2));
+				$('#posAmountTendered').val(amountDue.toFixed(2));
 			} else {
 				// Accumulate, so tapping 500 then 100 tenders 600 - the way a
 				// cashier actually counts notes onto the counter.
@@ -731,13 +843,38 @@
 			removeFromCart(productId);
 		});
 
+		$('#posDiscountEnabled').on('change', function () {
+			$('#posDiscountFields').toggle(this.checked);
+			updateTotalsDisplay();
+		});
+
+		$('#posDiscountFields').on('change input', 'select, input', function () {
+			updateTotalsDisplay();
+		});
+
+		function discountPayload() {
+			if (!discountEnabled()) return null;
+
+			return {
+				type: $('#posDiscountType').val(),
+				id_number: $('#posDiscountIdNumber').val().trim(),
+				customer_name: $('#posDiscountCustomerName').val().trim()
+			};
+		}
+
 		$('#posCheckoutBtn').on('click', function () {
 			if (!cart.length) return;
 
 			var tendered = tenderedValue();
-			if (tendered === null || round2(tendered - cartTotal) < 0) {
-				showToast('Enter an amount at least equal to the total.', 'error');
+			if (tendered === null || round2(tendered - amountDue) < 0) {
+				showToast('Enter an amount at least equal to the amount due.', 'error');
 				$('#posAmountTendered').trigger('focus');
+				return;
+			}
+
+			var discount = discountPayload();
+			if (discount && (!discount.id_number || !discount.customer_name)) {
+				showToast('Enter the Senior/PWD ID number and customer name.', 'error');
 				return;
 			}
 
@@ -757,7 +894,8 @@
 					items: cart.map(function (item) {
 						return { product_id: item.product_id, quantity: item.qty };
 					}),
-					amount_tendered: tenderedValue()
+					amount_tendered: tenderedValue(),
+					discount: discount
 				},
 				success: function (response) {
 					setButtonLoading(btn, false);
@@ -778,6 +916,9 @@
 
 					cart = [];
 					$('#posAmountTendered').val('');
+					$('#posDiscountEnabled').prop('checked', false);
+					$('#posDiscountFields').hide();
+					$('#posDiscountIdNumber, #posDiscountCustomerName').val('');
 					renderCart();
 					$('#posSearchInput').val('');
 					showInitialProducts();

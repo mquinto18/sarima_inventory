@@ -21,6 +21,18 @@ class Sale extends Model
         'notes',
         'pos_transaction_id',
         'user_id',
+        'tax_mode',
+        'vat_type',
+        'vatable_sales',
+        'vat_amount',
+        'vat_exempt_sales',
+        'zero_rated_sales',
+        'discount_type',
+        'discount_id_number',
+        'discount_customer_name',
+        'discount_amount',
+        'discount_vat_exempt_amount',
+        'amount_due',
     ];
 
     protected $casts = [
@@ -28,7 +40,14 @@ class Sale extends Model
         'unit_price' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'amount_tendered' => 'decimal:2',
-        'change_due' => 'decimal:2'
+        'change_due' => 'decimal:2',
+        'vatable_sales' => 'decimal:2',
+        'vat_amount' => 'decimal:2',
+        'vat_exempt_sales' => 'decimal:2',
+        'zero_rated_sales' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'discount_vat_exempt_amount' => 'decimal:2',
+        'amount_due' => 'decimal:2',
     ];
 
     public function product()

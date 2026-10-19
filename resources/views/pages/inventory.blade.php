@@ -251,6 +251,26 @@
 						</div>
 					</div>
 					<div style="margin-bottom: 18px;">
+						<label for="productVatType"
+							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">VAT Type</label>
+						<div class="form-input-group">
+							<span class="form-input-icon currency-icon">₱</span>
+							<select id="productVatType" name="vat_type">
+								<option value="T" selected>VATable (T)</option>
+								<option value="X">VAT-Exempt (X)</option>
+								<option value="Z">Zero-Rated (Z)</option>
+							</select>
+						</div>
+						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Controls how this product's price is broken down on the receipt under VAT registration.</small>
+					</div>
+					<div style="margin-bottom: 18px;">
+						<label style="display:flex; align-items:center; gap: 10px; font-weight:600; color: var(--color-text); cursor: pointer;">
+							<input type="hidden" name="senior_pwd_eligible" value="0">
+							<input type="checkbox" id="productSeniorPwdEligible" name="senior_pwd_eligible" value="1" checked style="width:18px; height:18px;">
+							Eligible for Senior Citizen / PWD discount
+						</label>
+					</div>
+					<div style="margin-bottom: 18px;">
 						<label for="productReorder"
 							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">Reorder
 							Level</label>
@@ -343,6 +363,26 @@
 							<span class="form-input-icon currency-icon">₱</span>
 							<input type="number" step="0.01" id="editProductPrice" name="price">
 						</div>
+					</div>
+					<div style="margin-bottom: 18px;">
+						<label for="editProductVatType"
+							style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--color-text);">VAT Type</label>
+						<div class="form-input-group">
+							<span class="form-input-icon currency-icon">₱</span>
+							<select id="editProductVatType" name="vat_type">
+								<option value="T">VATable (T)</option>
+								<option value="X">VAT-Exempt (X)</option>
+								<option value="Z">Zero-Rated (Z)</option>
+							</select>
+						</div>
+						<small style="color: var(--color-text-muted); font-size: 0.85rem;">Controls how this product's price is broken down on the receipt under VAT registration.</small>
+					</div>
+					<div style="margin-bottom: 18px;">
+						<label style="display:flex; align-items:center; gap: 10px; font-weight:600; color: var(--color-text); cursor: pointer;">
+							<input type="hidden" name="senior_pwd_eligible" value="0">
+							<input type="checkbox" id="editProductSeniorPwdEligible" name="senior_pwd_eligible" value="1" style="width:18px; height:18px;">
+							Eligible for Senior Citizen / PWD discount
+						</label>
 					</div>
 					<div style="margin-bottom: 18px;">
 						<label for="editProductReorder"
@@ -586,6 +626,8 @@
 				var productPrice = $(this).data('price');
 				var productReorder = $(this).data('reorder');
 				var productExpiry = $(this).data('expiry');
+				var productVatType = $(this).data('vat-type');
+				var productSeniorPwdEligible = $(this).data('senior-pwd-eligible');
 
 				// Populate form fields
 				$('#editProductId').val(productId);
@@ -595,6 +637,8 @@
 				$('#editProductPrice').val(productPrice);
 				$('#editProductReorder').val(productReorder);
 				$('#editProductExpiry').val(productExpiry || '');
+				$('#editProductVatType').val(productVatType || 'T');
+				$('#editProductSeniorPwdEligible').prop('checked', !!Number(productSeniorPwdEligible));
 				syncEditExpiryVisibility();
 
 				// Set form action
@@ -1019,6 +1063,8 @@
 											data-stock="{{ $product->stock }}" data-status="{{ $product->status }}"
 											data-price="{{ $product->price }}"
 											data-reorder="{{ $product->reorder_level }}"
+											data-vat-type="{{ $product->vat_type }}"
+											data-senior-pwd-eligible="{{ $product->senior_pwd_eligible ? 1 : 0 }}"
 										data-expiry="{{ $product->expiry_date?->format('Y-m-d') }}">Edit</button>
 									@else
 										<button class="btn-action edit edit-btn" disabled
@@ -1027,6 +1073,8 @@
 											data-category="{{ $product->category }}" data-stock="{{ $product->stock }}"
 											data-status="{{ $product->status }}" data-price="{{ $product->price }}"
 											data-reorder="{{ $product->reorder_level }}"
+											data-vat-type="{{ $product->vat_type }}"
+											data-senior-pwd-eligible="{{ $product->senior_pwd_eligible ? 1 : 0 }}"
 										data-expiry="{{ $product->expiry_date?->format('Y-m-d') }}">Edit</button>
 									@endif
 								@else
@@ -1035,6 +1083,8 @@
 										data-stock="{{ $product->stock }}" data-status="{{ $product->status }}"
 										data-price="{{ $product->price }}"
 										data-reorder="{{ $product->reorder_level }}"
+										data-vat-type="{{ $product->vat_type }}"
+										data-senior-pwd-eligible="{{ $product->senior_pwd_eligible ? 1 : 0 }}"
 										data-expiry="{{ $product->expiry_date?->format('Y-m-d') }}">Edit</button>
 								@endif
 								@if(Auth::user()->role !== 'staff')

@@ -9,7 +9,9 @@ use App\Models\EditRequest;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\Sale;
+use App\Models\Setting;
 use App\Services\InventoryService;
+use App\Services\VatCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -25,19 +27,26 @@ class PosController extends Controller
     public function index()
     {
         // `category` drives the filter chips above the product grid.
-        $products = Product::orderBy('name')->get(['id', 'name', 'sku', 'price', 'stock', 'category', 'expiry_date']);
+        $products = Product::orderBy('name')->get([
+            'id', 'name', 'sku', 'price', 'stock', 'category', 'expiry_date', 'vat_type', 'senior_pwd_eligible',
+        ]);
 
         $reorderCount = ProductController::getReorderCount();
         $reorderNotifications = ProductController::getReorderNotifications();
         $pendingApprovalCount = EditRequest::where('status', 'pending')->count();
         $notificationCount = $pendingApprovalCount + $reorderCount;
 
+        $taxMode = Setting::get('tax_registration', 'Non-VAT');
+        $vatRate = (float) Setting::get('vat_rate', 12);
+
         return view('pages.pos', compact(
             'products',
             'reorderCount',
             'reorderNotifications',
             'pendingApprovalCount',
-            'notificationCount'
+            'notificationCount',
+            'taxMode',
+            'vatRate'
         ));
     }
 
@@ -54,7 +63,7 @@ class PosController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $columns = ['id', 'name', 'sku', 'price', 'stock', 'category', 'expiry_date'];
+        $columns = ['id', 'name', 'sku', 'price', 'stock', 'category', 'expiry_date', 'vat_type', 'senior_pwd_eligible'];
 
         $exact = Product::whereRaw('LOWER(sku) = ?', [strtolower($q)])->first($columns);
 
@@ -89,19 +98,47 @@ class PosController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'amount_tendered' => 'required|numeric|min:0',
+            // All three or none: a discount can't be applied without knowing
+            // who it's for and proof of eligibility.
+            'discount' => 'nullable|array',
+            'discount.type' => 'required_with:discount|in:senior,pwd',
+            'discount.id_number' => 'required_with:discount|string|max:100',
+            'discount.customer_name' => 'required_with:discount|string|max:255',
         ], [
             'amount_tendered.required' => 'Enter the amount the customer handed over.',
+            'discount.type.required_with' => 'Select Senior Citizen or PWD.',
+            'discount.id_number.required_with' => 'Enter the ID number.',
+            'discount.customer_name.required_with' => 'Enter the customer name.',
         ]);
 
         $transactionId = (string) Str::uuid();
         $tendered = round((float) $validated['amount_tendered'], 2);
+        $discount = $validated['discount'] ?? null;
+        $taxMode = Setting::get('tax_registration', 'Non-VAT');
+        $vatRate = (float) Setting::get('vat_rate', 12);
         $updatedStock = [];
         $totalAmount = 0;
+        $amountDue = 0;
         $changeDue = 0;
+        $totals = [];
 
         try {
-            DB::transaction(function () use ($validated, $transactionId, $tendered, &$updatedStock, &$totalAmount, &$changeDue) {
-                $lines = [];
+            DB::transaction(function () use (
+                $validated,
+                $transactionId,
+                $tendered,
+                $discount,
+                $taxMode,
+                $vatRate,
+                &$updatedStock,
+                &$totalAmount,
+                &$amountDue,
+                &$changeDue,
+                &$totals
+            ) {
+                $products = [];
+                $quantities = [];
+                $calcLines = [];
 
                 foreach ($validated['items'] as $item) {
                     $product = Product::findOrFail($item['product_id']);
@@ -126,29 +163,41 @@ class PosController extends Controller
                         );
                     }
 
-                    $lineTotal = round($quantity * (float) $product->price, 2);
-
-                    $lines[] = [$product, $quantity, $lineTotal];
-                    $totalAmount += $lineTotal;
+                    $products[] = $product;
+                    $quantities[] = $quantity;
+                    $calcLines[] = [
+                        'quantity' => $quantity,
+                        'unit_price' => (float) $product->price,
+                        'vat_type' => $product->vat_type ?? 'T',
+                        'senior_pwd_eligible' => (bool) $product->senior_pwd_eligible,
+                    ];
                 }
 
-                $totalAmount = round($totalAmount, 2);
+                $calc = (new VatCalculator($taxMode, $vatRate))->calculate($calcLines, (bool) $discount);
+                $totals = $calc['totals'];
+                $totalAmount = $totals['total_amount'];
+                $amountDue = $totals['amount_due'];
 
-                // Checked against the price the server just read, never against a
-                // total supplied by the browser. Thrown inside the transaction so
-                // a short payment rolls back before any stock is deducted.
-                if ($tendered < $totalAmount) {
-                    throw new ShortPaymentException($totalAmount, $tendered);
+                // Checked against the amount the server just computed, never
+                // against a total supplied by the browser. Thrown inside the
+                // transaction so a short payment rolls back before any stock
+                // is deducted. Compared against amount_due (what's actually
+                // owed after any Senior/PWD discount), not the gross total.
+                if ($tendered < $amountDue) {
+                    throw new ShortPaymentException($amountDue, $tendered);
                 }
 
-                $changeDue = round($tendered - $totalAmount, 2);
+                $changeDue = round($tendered - $amountDue, 2);
 
-                foreach ($lines as [$product, $quantity, $lineTotal]) {
+                foreach ($products as $i => $product) {
+                    $quantity = $quantities[$i];
+                    $line = $calc['lines'][$i];
+
                     $sale = Sale::create([
                         'product_id' => $product->id,
                         'quantity_sold' => $quantity,
                         'unit_price' => $product->price,
-                        'total_amount' => $lineTotal,
+                        'total_amount' => $line['total_amount'],
                         'amount_tendered' => $tendered,
                         'change_due' => $changeDue,
                         'sale_date' => now()->toDateString(),
@@ -158,6 +207,18 @@ class PosController extends Controller
                         // only in the stock ledger, so the POS log can name them
                         // without joining through stock_movements.
                         'user_id' => Auth::id(),
+                        'tax_mode' => $taxMode,
+                        'vat_type' => $line['vat_type'],
+                        'vatable_sales' => $line['vatable_sales'],
+                        'vat_amount' => $line['vat_amount'],
+                        'vat_exempt_sales' => $line['vat_exempt_sales'],
+                        'zero_rated_sales' => $line['zero_rated_sales'],
+                        'discount_type' => $discount['type'] ?? null,
+                        'discount_id_number' => $discount['id_number'] ?? null,
+                        'discount_customer_name' => $discount['customer_name'] ?? null,
+                        'discount_amount' => $line['discount_amount'],
+                        'discount_vat_exempt_amount' => $line['discount_vat_exempt_amount'],
+                        'amount_due' => $line['amount_due'],
                     ]);
 
                     // Locked, transactional stock deduction; guards against
@@ -181,7 +242,7 @@ class PosController extends Controller
         } catch (ShortPaymentException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Amount received (₱' . number_format($e->tendered, 2) . ') is less than the total (₱'
+                'message' => 'Amount received (₱' . number_format($e->tendered, 2) . ') is less than the amount due (₱'
                     . number_format($e->total, 2) . ').',
                 'total_amount' => $e->total,
                 'amount_tendered' => $e->tendered,
@@ -217,8 +278,10 @@ class PosController extends Controller
             'success' => true,
             'transaction_id' => $transactionId,
             'total_amount' => $totalAmount,
+            'amount_due' => $amountDue,
             'amount_tendered' => $tendered,
             'change_due' => $changeDue,
+            'discount_amount' => $totals['discount_amount'] ?? 0,
             'receipt_url' => route('pos.receipt', $transactionId),
             'updated_stock' => $updatedStock,
         ]);
@@ -235,8 +298,10 @@ class PosController extends Controller
             ->orderBy('id')
             ->get();
 
-        // Tendered/change are written identically to every line of the
-        // transaction, so the first row carries the transaction-level figures.
+        // Tendered/change/tax mode/discount identity are written identically
+        // to every line of the transaction, so the first row carries those
+        // transaction-level figures; vatable_sales and friends are per-line
+        // and summed below, same as total_amount already was.
         $first = $sales->first();
 
         return view('pages.pos-receipt', [
@@ -245,6 +310,18 @@ class PosController extends Controller
             'totalAmount' => $sales->sum('total_amount'),
             'amountTendered' => $first?->amount_tendered,
             'changeDue' => $first?->change_due,
+            'taxMode' => $first?->tax_mode ?? Setting::get('tax_registration', 'Non-VAT'),
+            'vatRateLabel' => rtrim(rtrim(number_format((float) Setting::get('vat_rate', 12), 1), '0'), '.'),
+            'vatableSales' => $sales->sum('vatable_sales'),
+            'vatAmount' => $sales->sum('vat_amount'),
+            'vatExemptSales' => $sales->sum('vat_exempt_sales'),
+            'zeroRatedSales' => $sales->sum('zero_rated_sales'),
+            'amountDue' => $sales->sum('amount_due'),
+            'discountType' => $first?->discount_type,
+            'discountIdNumber' => $first?->discount_id_number,
+            'discountCustomerName' => $first?->discount_customer_name,
+            'discountAmount' => $sales->sum('discount_amount'),
+            'discountVatExemptAmount' => $sales->sum('discount_vat_exempt_amount'),
         ]);
     }
 }

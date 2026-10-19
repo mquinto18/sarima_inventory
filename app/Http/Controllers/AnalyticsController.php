@@ -22,8 +22,10 @@ class AnalyticsController extends Controller
         $lastMonth = Carbon::now()->subMonth();
 
         // ---- KPI: Total sales this year ----
-        $salesYtd = Sale::whereYear('sale_date', $now->year)->sum('total_amount');
-        $salesLastYear = Sale::whereYear('sale_date', $now->year - 1)->sum('total_amount');
+        // amount_due (not total_amount): revenue reflects what was actually
+        // collected after any Senior/PWD discount, not the pre-discount total.
+        $salesYtd = Sale::whereYear('sale_date', $now->year)->sum('amount_due');
+        $salesLastYear = Sale::whereYear('sale_date', $now->year - 1)->sum('amount_due');
         $salesYoyChange = $salesLastYear > 0
             ? round((($salesYtd - $salesLastYear) / $salesLastYear) * 100, 1)
             : null;
@@ -47,8 +49,9 @@ class AnalyticsController extends Controller
         $inventoryTurnoverLastMonth = round($unitsSoldLastMonth / $totalStock, 2);
 
         // ---- Revenue this month vs last month (for the key metrics table) ----
-        $revenueThisMonth = Sale::whereYear('sale_date', $now->year)->whereMonth('sale_date', $now->month)->sum('total_amount');
-        $revenueLastMonth = Sale::whereYear('sale_date', $lastMonth->year)->whereMonth('sale_date', $lastMonth->month)->sum('total_amount');
+        // amount_due, not total_amount: see note above.
+        $revenueThisMonth = Sale::whereYear('sale_date', $now->year)->whereMonth('sale_date', $now->month)->sum('amount_due');
+        $revenueLastMonth = Sale::whereYear('sale_date', $lastMonth->year)->whereMonth('sale_date', $lastMonth->month)->sum('amount_due');
         $revenueChange = $revenueLastMonth > 0
             ? round((($revenueThisMonth - $revenueLastMonth) / $revenueLastMonth) * 100, 1)
             : null;
@@ -61,13 +64,13 @@ class AnalyticsController extends Controller
             $trendMonths[] = $month->format('M Y');
             $trendRevenue[] = (float) Sale::whereYear('sale_date', $month->year)
                 ->whereMonth('sale_date', $month->month)
-                ->sum('total_amount');
+                ->sum('amount_due');
         }
 
         // ---- Revenue by category, this year (for the chart) ----
         $categoryRevenue = Sale::join('products', 'sales.product_id', '=', 'products.id')
             ->whereYear('sales.sale_date', $now->year)
-            ->select('products.category', DB::raw('SUM(sales.total_amount) as total'))
+            ->select('products.category', DB::raw('SUM(sales.amount_due) as total'))
             ->groupBy('products.category')
             ->orderByDesc('total')
             ->get();

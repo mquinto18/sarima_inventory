@@ -122,6 +122,48 @@
 			color: #6b7280;
 		}
 
+		.receipt-footer .receipt-disclaimer {
+			font-weight: 700;
+			color: #111827;
+			margin-top: 10px;
+		}
+
+		.receipt-vat-row {
+			display: flex;
+			justify-content: space-between;
+			font-size: 0.85rem;
+			padding-top: 4px;
+			color: #374151;
+		}
+
+		.receipt-vat-block {
+			margin-top: 8px;
+			padding-top: 8px;
+			border-top: 1px dotted #9ca3af;
+		}
+
+		.receipt-non-vat-label {
+			text-align: center;
+			font-weight: 700;
+			font-size: 0.85rem;
+			letter-spacing: 0.5px;
+			margin-top: 8px;
+			padding-top: 8px;
+			border-top: 1px dotted #9ca3af;
+		}
+
+		.receipt-discount-block {
+			margin-top: 10px;
+			padding-top: 10px;
+			border-top: 1px dashed #9ca3af;
+			font-size: 0.82rem;
+		}
+
+		.receipt-discount-block .receipt-discount-title {
+			font-weight: 700;
+			margin-bottom: 4px;
+		}
+
 		.no-print {
 			text-align: center;
 			margin-top: 20px;
@@ -164,7 +206,7 @@
 		<div class="receipt-header">
 			<img src="{{ asset('images/logo-icon-64.png') }}" alt="Larios Pharmacy" class="receipt-logo">
 			<h1>LARIOS PHARMACY</h1>
-			<p>Official Sales Receipt</p>
+			<p>Sales Invoice</p>
 		</div>
 
 		<div class="receipt-meta">
@@ -187,7 +229,12 @@
 						<td>{{ $sale->product->name ?? 'Unknown item' }}</td>
 						<td>{{ $sale->quantity_sold }}</td>
 						<td>&#8369;{{ number_format($sale->unit_price, 2) }}</td>
-						<td>&#8369;{{ number_format($sale->total_amount, 2) }}</td>
+						<td>
+							&#8369;{{ number_format($sale->total_amount, 2) }}
+							@if($taxMode === 'VAT' && $sale->vat_type)
+								<span style="color: #6b7280;">({{ $sale->vat_type }})</span>
+							@endif
+						</td>
 					</tr>
 				@endforeach
 			</tbody>
@@ -196,6 +243,34 @@
 		<div class="receipt-total-row">
 			<span>TOTAL</span>
 			<span>&#8369;{{ number_format($totalAmount, 2) }}</span>
+		</div>
+
+		@if($taxMode === 'VAT')
+			<div class="receipt-vat-block">
+				<div class="receipt-vat-row"><span>VATable Sales (T)</span><span>&#8369;{{ number_format($vatableSales, 2) }}</span></div>
+				<div class="receipt-vat-row"><span>VAT-Exempt Sale (X)</span><span>&#8369;{{ number_format($vatExemptSales, 2) }}</span></div>
+				<div class="receipt-vat-row"><span>VAT Zero-Rated Sale (Z)</span><span>&#8369;{{ number_format($zeroRatedSales, 2) }}</span></div>
+				<div class="receipt-vat-row"><span>VAT - {{ $vatRateLabel }}%</span><span>&#8369;{{ number_format($vatAmount, 2) }}</span></div>
+			</div>
+		@else
+			<div class="receipt-non-vat-label">NON-VAT REGISTERED</div>
+		@endif
+
+		@if($discountType)
+			<div class="receipt-discount-block">
+				<div class="receipt-discount-title">{{ $discountType === 'senior' ? 'Senior Citizen' : 'PWD' }} Discount</div>
+				<div class="receipt-vat-row"><span>ID Number</span><span>{{ $discountIdNumber }}</span></div>
+				<div class="receipt-vat-row"><span>Name</span><span>{{ $discountCustomerName }}</span></div>
+				@if($taxMode === 'VAT')
+					<div class="receipt-vat-row"><span>VAT Exemption</span><span>&#8369;{{ number_format($discountVatExemptAmount, 2) }}</span></div>
+				@endif
+				<div class="receipt-vat-row"><span>Less: 20% Discount</span><span>&#8369;{{ number_format($discountAmount, 2) }}</span></div>
+			</div>
+		@endif
+
+		<div class="receipt-total-row" style="margin-top: 8px;">
+			<span>AMOUNT DUE</span>
+			<span>&#8369;{{ number_format($amountDue, 2) }}</span>
 		</div>
 
 		{{-- Null for sales recorded before cash tendering was captured. --}}
@@ -213,6 +288,7 @@
 		<div class="receipt-footer">
 			<p>Thank you for your purchase!</p>
 			<p>Please keep this receipt for any returns or exchanges.</p>
+			<p class="receipt-disclaimer">THIS IS NOT AN OFFICIAL RECEIPT</p>
 		</div>
 	</div>
 

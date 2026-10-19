@@ -160,6 +160,36 @@
                 </div>
                 <div style="color: var(--color-text-muted); font-size: 0.85rem; margin-top: 8px;">When a product's primary supplier cost is set, its selling price is automatically recalculated as cost + this markup.</div>
             </div>
+
+            {{-- Admin-only: tax registration determines whether the POS receipt
+                 breaks VAT out of every price (shelf prices stay VAT-inclusive
+                 either way) - too consequential for BIR compliance to leave to
+                 a manager. --}}
+            @if(Auth::user()->role === 'admin')
+                <div class="card-panel" style="flex: 1; min-width: 280px;">
+                    <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 4px; color: var(--color-text);">Tax Registration</div>
+                    <div style="color: var(--color-text-muted); font-size: 0.92rem; margin-bottom: 20px;">Admin-only. Shelf prices never change - this only controls how VAT is broken out on the receipt.</div>
+
+                    <label for="tax_registration" style="display:block; font-weight:600; margin-bottom:7px; color: var(--color-text);">Registration Status</label>
+                    <div class="form-input-group" style="margin-bottom: 18px;">
+                        <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <select name="tax_registration" id="tax_registration">
+                            <option value="Non-VAT" {{ old('tax_registration', $settings['tax_registration']) === 'Non-VAT' ? 'selected' : '' }}>Non-VAT</option>
+                            <option value="VAT" {{ old('tax_registration', $settings['tax_registration']) === 'VAT' ? 'selected' : '' }}>VAT-Registered</option>
+                        </select>
+                    </div>
+
+                    <label for="vat_rate" style="display:block; font-weight:600; margin-bottom:7px; color: var(--color-text);">VAT Rate (%)</label>
+                    <div class="form-input-group">
+                        <span class="form-input-icon currency-icon">%</span>
+                        <input type="number" min="0" max="100" step="0.1" name="vat_rate" id="vat_rate"
+                            value="{{ old('vat_rate', $settings['vat_rate']) }}">
+                    </div>
+                    <div style="color: var(--color-text-muted); font-size: 0.85rem; margin-top: 8px;">Only used while Registration Status is VAT-Registered.</div>
+                </div>
+            @endif
         </div>
 
         <button type="submit" class="btn-action edit" style="padding: 13px 32px; font-size: 1.05rem;">Save Settings</button>

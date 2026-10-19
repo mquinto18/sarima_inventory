@@ -26,6 +26,8 @@ class Setting extends Model
             'velocity_window_days' => 30,
             'default_lead_time_days' => 7,
             'default_markup_percent' => 10,
+            'tax_registration' => 'Non-VAT',
+            'vat_rate' => 12,
         ];
     }
 

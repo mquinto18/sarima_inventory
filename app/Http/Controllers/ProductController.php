@@ -954,6 +954,8 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'price' => 'nullable|numeric',
             'reorder_level' => 'required|integer|min:0',
+            'vat_type' => 'nullable|in:' . implode(',', Product::VAT_TYPES),
+            'senior_pwd_eligible' => 'nullable|boolean',
             // Required when creating a new product, unlike update() - this
             // doesn't conflict with ProductController::disposeExpiredStock()
             // clearing expiry_date back to null on an existing product once
@@ -978,6 +980,9 @@ class ProductController extends Controller
         if (array_key_exists('category', $validated)) {
             $validated['category'] = trim((string) $validated['category']) ?: null;
         }
+
+        $validated['vat_type'] = $validated['vat_type'] ?? 'T';
+        $validated['senior_pwd_eligible'] = $request->boolean('senior_pwd_eligible', true);
 
         // stock/expiry_date are set via InventoryService below, not written
         // directly here - a product created with a cached stock count but no
@@ -1035,6 +1040,8 @@ class ProductController extends Controller
             'stock' => 'required|integer|min:0',
             'price' => 'nullable|numeric',
             'reorder_level' => 'required|integer|min:0',
+            'vat_type' => 'nullable|in:' . implode(',', Product::VAT_TYPES),
+            'senior_pwd_eligible' => 'nullable|boolean',
             // before_or_equal backstops the date input's own max attribute -
             // a malformed year like "202000" is still a syntactically valid
             // date PHP will parse, and requests never go through the
@@ -1068,6 +1075,8 @@ class ProductController extends Controller
             : null;
         unset($validated['stock'], $validated['expiry_date']);
         $validated['status'] = Product::statusForStock($request->input('stock'));
+        $validated['vat_type'] = $validated['vat_type'] ?? 'T';
+        $validated['senior_pwd_eligible'] = $request->boolean('senior_pwd_eligible');
 
         try {
             $product = DB::transaction(function () use ($product, $validated, $stockDelta, $submittedExpiry, $neverExpires, $correctingSingleBatch) {
