@@ -173,6 +173,12 @@ class PosVatDiscountTest extends TestCase
         $this->assertEquals('senior', $sale->discount_type);
         $this->assertEquals('SC-001', $sale->discount_id_number);
         $this->assertEquals('Juan Dela Cruz', $sale->discount_customer_name);
+
+        // RA 9994/10754: a discounted VATable item is exempt from VAT
+        // outright, so its VAT-exclusive base lands in VAT-Exempt Sale (X),
+        // not VATable Sales (T) - the sale isn't erased from the breakdown.
+        $this->assertEquals(0, (float) $sale->vatable_sales);
+        $this->assertEquals(51.56, (float) $sale->vat_exempt_sales);
     }
 
     public function test_pwd_discount_in_non_vat_mode(): void

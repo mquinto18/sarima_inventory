@@ -128,10 +128,14 @@ class VatCalculator
     }
 
     /**
-     * Senior Citizen/PWD items are exempt from VAT outright (RA 9994/10754),
-     * so they never land in the VATable/Exempt/Zero-rated breakdown above -
-     * they're reported separately via discount_amount/discount_vat_exempt_amount
-     * instead, to avoid double-counting the same peso in two places.
+     * Senior Citizen/PWD items are exempt from VAT outright (RA 9994/10754).
+     * A VATable (T) item's VAT-exclusive base therefore moves into the
+     * VAT-Exempt Sale (X) bucket instead of VATable Sales - the discount
+     * doesn't erase the sale from the breakdown, it reclassifies it. An
+     * already-exempt (X) item stays in that same bucket at its base amount;
+     * a zero-rated (Z) item stays in its own bucket. Only the VAT actually
+     * waived (discount_vat_exempt_amount) and the 20% discount itself are
+     * reported separately, in the discount block.
      */
     private function calculateDiscountedLine(int $totalCents, string $vatType, array $result): array
     {
@@ -149,6 +153,14 @@ class VatCalculator
         $result['discount_vat_exempt_amount'] = $this->toPesos($vatExemptCents);
         $result['discount_amount'] = $this->toPesos($discountCents);
         $result['amount_due'] = $this->toPesos($baseCents - $discountCents);
+
+        if ($this->isVatMode()) {
+            if ($vatType === 'Z') {
+                $result['zero_rated_sales'] = $this->toPesos($baseCents);
+            } else {
+                $result['vat_exempt_sales'] = $this->toPesos($baseCents);
+            }
+        }
 
         return $result;
     }
