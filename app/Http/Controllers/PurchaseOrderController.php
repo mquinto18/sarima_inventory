@@ -83,6 +83,60 @@ class PurchaseOrderController extends Controller
     }
 
     /**
+     * Admin review step for an auto-generated (or any) draft PO: lets the
+     * quantity ordered per line be adjusted before it's emailed, so the
+     * supplier never sees a straight-through quantity the admin hasn't
+     * actually signed off on. Only draft POs are editable - once sent, the
+     * supplier already has a copy, so the numbers can't quietly change
+     * underneath them.
+     */
+    public function updateItems(Request $request, $id)
+    {
+        $this->denyStaff();
+
+        $purchaseOrder = PurchaseOrder::with('items')->findOrFail($id);
+
+        if ($purchaseOrder->status !== 'draft') {
+            $message = 'Only draft purchase orders can have their quantities edited.';
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        $validated = $request->validate([
+            'items' => 'required|array',
+            'items.*.quantity_ordered' => 'required|integer|min:1',
+        ]);
+
+        DB::transaction(function () use ($purchaseOrder, $validated) {
+            $totalValue = 0;
+
+            foreach ($purchaseOrder->items as $item) {
+                $qty = (int) ($validated['items'][$item->id]['quantity_ordered'] ?? $item->quantity_ordered);
+                $subtotal = $qty * $item->unit_cost;
+
+                $item->update(['quantity_ordered' => $qty, 'subtotal' => $subtotal]);
+                $totalValue += $subtotal;
+            }
+
+            $purchaseOrder->update(['total_value' => $totalValue]);
+        });
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Purchase order quantities updated.',
+                'purchase_order' => $purchaseOrder->fresh(['supplier', 'items.product']),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Purchase order quantities updated.');
+    }
+
+    /**
      * Email this draft purchase order to its supplier: generates the PDF,
      * issues a confirmation token embedded in the Reply-To address (so the
      * supplier's reply can be matched back to this PO by the inbound mail

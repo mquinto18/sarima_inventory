@@ -22,7 +22,7 @@ class CheckReplenishment extends Command
      *
      * @var string
      */
-    protected $description = 'Scan products at/below reorder point and auto-generate + email purchase orders to primary suppliers (straight-through processing).';
+    protected $description = 'Scan products at/below reorder point and auto-generate draft purchase orders to primary suppliers for admin review (never auto-sent).';
 
     /**
      * Execute the console command.
@@ -66,52 +66,34 @@ class CheckReplenishment extends Command
         }
 
         $createdPOs = [];
-        $sentPOs = [];
-        $failedPOs = [];
 
         foreach ($bySupplier as $supplierId => $group) {
             if (empty($group['lines'])) {
                 continue;
             }
 
-            // PO creation and the supplier email both happen inside
-            // createAndSendPO(); a send failure there is logged internally
-            // and leaves the PO as 'draft' rather than throwing, so we tell
-            // success from failure via the returned PO's status. A null
-            // return means every line in this group got claimed by a
+            // Only ever creates a 'draft' PO - never emails the supplier.
+            // A null return means every line in this group got claimed by a
             // concurrent run (e.g. an event-driven trigger) between this
             // command's evaluate pass and its own lock acquisition - nothing
             // left to create here.
-            $purchaseOrder = $replenishment->createAndSendPO($group['supplier'], $group['lines']);
+            $purchaseOrder = $replenishment->createPO($group['supplier'], $group['lines']);
 
             if (!$purchaseOrder) {
                 continue;
             }
 
             $createdPOs[] = $purchaseOrder->po_number;
-
-            if ($purchaseOrder->status === 'sent') {
-                $sentPOs[] = $purchaseOrder->po_number;
-            } else {
-                $failedPOs[] = $purchaseOrder->po_number;
-            }
         }
 
         $summary = [
             'pos_created' => $createdPOs,
-            'pos_sent' => $sentPOs,
-            'pos_failed_to_send' => $failedPOs,
             'skipped_no_supplier' => $skippedNoSupplier,
             'capped_products' => $cappedProducts,
         ];
 
         $this->info('Replenishment check complete.');
-        $this->info('POs created: ' . (count($createdPOs) ?: 'none') . (count($createdPOs) ? ' (' . implode(', ', $createdPOs) . ')' : ''));
-        $this->info('POs sent: ' . (count($sentPOs) ?: 'none') . (count($sentPOs) ? ' (' . implode(', ', $sentPOs) . ')' : ''));
-
-        if (!empty($failedPOs)) {
-            $this->warn('POs created but failed to send (left as draft): ' . implode(', ', $failedPOs));
-        }
+        $this->info('Draft POs created (awaiting admin review): ' . (count($createdPOs) ?: 'none') . (count($createdPOs) ? ' (' . implode(', ', $createdPOs) . ')' : ''));
 
         if (!empty($skippedNoSupplier)) {
             $this->warn('Skipped (no primary supplier): ' . implode(', ', $skippedNoSupplier));

@@ -108,13 +108,13 @@
             <!-- Automated Ordering (STP) -->
             <div class="card-panel" style="flex: 1; min-width: 280px;">
                 <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 4px; color: var(--color-text);">Automated Ordering (STP)</div>
-                <div style="color: var(--color-text-muted); font-size: 0.92rem; margin-bottom: 20px;">Straight-through processing limits for automatically generated purchase orders.</div>
+                <div style="color: var(--color-text-muted); font-size: 0.92rem; margin-bottom: 20px;">When a product hits its reorder point, a draft purchase order is created automatically for review - it is never emailed to the supplier until an admin opens it and clicks "Send to Supplier".</div>
 
                 <label style="display:flex; align-items:center; gap: 10px; font-weight:600; margin-bottom:18px; color: var(--color-text); cursor: pointer;">
                     <input type="hidden" name="stp_enabled" value="0">
                     <input type="checkbox" name="stp_enabled" id="stp_enabled" value="1" style="width:18px; height:18px;"
                         {{ old('stp_enabled', $settings['stp_enabled']) ? 'checked' : '' }}>
-                    Enable automated ordering
+                    Enable automated draft ordering
                 </label>
 
                 <label for="stp_max_order_value" style="display:block; font-weight:600; margin-bottom:7px; color: var(--color-text);">Max Auto-Order Value (₱)</label>

@@ -60,6 +60,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-orders', [\App\Http\Controllers\PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
     Route::get('/purchase-orders/{purchaseOrder}', [\App\Http\Controllers\PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
     Route::post('/purchase-orders/{purchaseOrder}/send', [\App\Http\Controllers\PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
+    Route::post('/purchase-orders/{purchaseOrder}/update-items', [\App\Http\Controllers\PurchaseOrderController::class, 'updateItems'])->name('purchase-orders.update-items');
     Route::post('/purchase-orders/{purchaseOrder}/receive', [\App\Http\Controllers\PurchaseOrderController::class, 'receiveDelivery'])->name('purchase-orders.receive');
     // Manual overrides: let an admin record the supplier's response directly
     // when the email confirm link is unreachable or the supplier responded

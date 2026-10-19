@@ -97,12 +97,6 @@ class ReplenishmentService
     }
 
     /**
-     * Create a draft PO for the given supplier + line items and immediately
-     * try to email it. Sending is outside the row-creation transaction so a
-     * mail/PDF failure never rolls back the already-decided PO - it's just
-     * left as 'draft' for manual follow-up via "Send to Supplier".
-     */
-    /**
      * Next PO number for today, based on the highest suffix already
      * assigned - not a row count. A count breaks the moment any of today's
      * POs get deleted (e.g. test data cleanup): the count drops below the
@@ -125,8 +119,16 @@ class ReplenishmentService
      * exclusive claim on their products, or null if none do. Returns null
      * (rather than a PurchaseOrder) when every line got dropped by the
      * re-check below - callers must handle that case.
+     *
+     * Deliberately does NOT email the supplier - it only creates the PO as
+     * 'draft'. An admin reviews it (and can adjust quantities via
+     * PurchaseOrderController::updateItems()) on the Purchase Orders page,
+     * then explicitly clicks "Send to Supplier" to email it, or "Mark as
+     * Cancelled" to reject it. Reordering being triggered automatically by
+     * a stock drop must never, by itself, commit the pharmacy to a real
+     * purchase - a human always confirms the order before it goes out.
      */
-    public function createAndSendPO(Supplier $supplier, array $lines): ?PurchaseOrder
+    public function createPO(Supplier $supplier, array $lines): ?PurchaseOrder
     {
         $purchaseOrder = DB::transaction(function () use ($supplier, $lines) {
             // evaluateForOrder()'s own "already has an open PO" check runs
@@ -219,28 +221,14 @@ class ReplenishmentService
             return $purchaseOrder;
         });
 
-        if (!$purchaseOrder) {
-            return null;
-        }
-
-        // Sending failures are swallowed here (logged only) so they never
-        // undo the already-decided, already-capped PO above - it's just
-        // left as 'draft' for manual follow-up via "Send to Supplier".
-        // Callers can tell success from failure via $purchaseOrder->status.
-        try {
-            app(PurchaseOrderService::class)->sendToSupplier($purchaseOrder);
-        } catch (\Throwable $e) {
-            Log::error("Failed to send PO {$purchaseOrder->po_number}: " . $e->getMessage());
-        }
-
-        return $purchaseOrder->refresh();
+        return $purchaseOrder;
     }
 
     /**
      * Request-scoped batch: every product whose stock decreases gets queued
      * here instead of evaluated immediately, so a single checkout/request
      * that drops several products to/below their reorder point produces one
-     * combined email per supplier instead of one email per product. Static
+     * combined draft PO per supplier instead of one per product. Static
      * because InventoryService resolves a fresh ReplenishmentService via
      * app() on every call; a plain PHP-FPM/artisan-serve request is still a
      * single process, so this naturally starts empty on the next request.
@@ -253,10 +241,10 @@ class ReplenishmentService
      * decreases (see InventoryService::adjustStock) so a sale, adjustment,
      * or disposal that pushes it to/below its reorder point gets picked up
      * without waiting for the next scheduled CheckReplenishment run. Queues
-     * the product and defers the actual evaluation/PO/email until the
+     * the product and defers the actual evaluation/PO creation until the
      * current transaction commits (via DB::afterCommit), by which point
      * every product touched in this request has been queued - so they can
-     * be grouped by supplier into one PO/email each, same as the scheduled
+     * be grouped by supplier into one draft PO each, same as the scheduled
      * batch job already does across a full product scan.
      */
     public function queueProduct(Product $product): void
@@ -305,18 +293,14 @@ class ReplenishmentService
             $productNames = implode(', ', array_map(fn ($line) => $line['product']->name, $group['lines']));
 
             try {
-                $purchaseOrder = $this->createAndSendPO($group['supplier'], $group['lines']);
+                $purchaseOrder = $this->createPO($group['supplier'], $group['lines']);
 
                 if (!$purchaseOrder) {
                     Log::info("Replenishment: no PO created for ({$productNames}) - all lines were already covered by an open order from a concurrent run.");
                     continue;
                 }
 
-                if ($purchaseOrder->status === 'sent') {
-                    Log::info("Replenishment: auto-ordered {$productNames} via {$purchaseOrder->po_number}, triggered by stock change.");
-                } else {
-                    Log::warning("Replenishment: created PO {$purchaseOrder->po_number} for {$productNames} but failed to send - left as draft.");
-                }
+                Log::info("Replenishment: created draft PO {$purchaseOrder->po_number} for {$productNames}, triggered by stock change - awaiting admin review.");
             } catch (\Throwable $e) {
                 Log::error("Replenishment: failed to auto-order ({$productNames}) for supplier #{$group['supplier']->id}: " . $e->getMessage());
             }

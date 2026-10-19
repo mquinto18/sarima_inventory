@@ -10,6 +10,7 @@
     };
     $statusLabel = ucwords(str_replace('_', ' ', $purchaseOrder->status));
     $canReceive = in_array($purchaseOrder->status, ['confirmed', 'partially_received']);
+    $isDraft = $purchaseOrder->status === 'draft';
 @endphp
 
 <div style="margin-bottom: 20px;">
@@ -29,7 +30,7 @@
     </div>
     <div class="card-panel" style="flex: 1; min-width: 260px;">
         <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 12px; color: var(--color-text);">Order Details</div>
-        <div style="margin-bottom: 6px;"><span style="color: var(--color-text-muted);">Total Value:</span> <strong>₱{{ number_format($purchaseOrder->total_value, 2) }}</strong></div>
+        <div style="margin-bottom: 6px;"><span style="color: var(--color-text-muted);">Total Value:</span> <strong id="poHeaderTotalValue">₱{{ number_format($purchaseOrder->total_value, 2) }}</strong></div>
         <div style="margin-bottom: 6px;"><span style="color: var(--color-text-muted);">Expected Delivery:</span> {{ $purchaseOrder->expected_delivery_date ? $purchaseOrder->expected_delivery_date->format('Y-m-d') : '—' }}</div>
         <div style="margin-bottom: 6px;"><span style="color: var(--color-text-muted);">Sent At:</span> {{ $purchaseOrder->sent_at ? $purchaseOrder->sent_at->format('Y-m-d H:i') : '—' }}</div>
         <div style="margin-bottom: 6px;"><span style="color: var(--color-text-muted);">Delivered At:</span> {{ $purchaseOrder->delivered_at ? $purchaseOrder->delivered_at->format('Y-m-d H:i') : '—' }}</div>
@@ -37,9 +38,14 @@
     </div>
 </div>
 
-@if($purchaseOrder->status === 'draft')
+@if($isDraft)
     <div class="card-panel" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-        <div style="color: var(--color-text-muted);">This purchase order hasn't been emailed to the supplier yet.</div>
+        <div style="color: var(--color-text-muted);">
+            This purchase order hasn't been emailed to the supplier yet.
+            @if($purchaseOrder->is_auto_generated)
+                Review the quantities below before sending - adjust them if needed, then confirm by sending, or reject by cancelling.
+            @endif
+        </div>
         <form id="sendToSupplierForm" method="POST" action="{{ route('purchase-orders.send', $purchaseOrder->id) }}">
             @csrf
             <button type="submit" class="btn-action edit">Send to Supplier</button>
@@ -122,7 +128,8 @@
     </div>
 @endif
 
-<form id="receiveDeliveryForm" method="POST" action="{{ route('purchase-orders.receive', $purchaseOrder->id) }}">
+<form id="{{ $isDraft ? 'updateItemsForm' : 'receiveDeliveryForm' }}" method="POST"
+    action="{{ $isDraft ? route('purchase-orders.update-items', $purchaseOrder->id) : route('purchase-orders.receive', $purchaseOrder->id) }}">
     @csrf
     <div class="data-table-container" style="margin-bottom: 0;">
         <div style="font-weight: 700; font-size: 1.15rem; margin-bottom: 16px; color: var(--color-text); padding-left: 24px; padding-top: 18px;">
@@ -149,11 +156,20 @@
                         @php $remaining = $item->quantity_ordered - $item->quantity_received; @endphp
                         <tr>
                             <td style="font-weight: 600; color: var(--color-text);">{{ $item->product->name ?? '—' }}</td>
-                            <td>{{ $item->quantity_ordered }}</td>
+                            <td>
+                                @if($isDraft)
+                                    <input type="number" class="po-qty-ordered-input" name="items[{{ $item->id }}][quantity_ordered]"
+                                        min="1" value="{{ $item->quantity_ordered }}" data-unit-cost="{{ $item->unit_cost }}"
+                                        oninput="updatePoTotals(this)"
+                                        style="width: 90px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1.5px solid #e5e7eb;">
+                                @else
+                                    {{ $item->quantity_ordered }}
+                                @endif
+                            </td>
                             <td>{{ $item->quantity_received }}</td>
                             <td>{{ $remaining }}</td>
                             <td>₱{{ number_format($item->unit_cost, 2) }}</td>
-                            <td>₱{{ number_format($item->subtotal, 2) }}</td>
+                            <td class="po-subtotal-cell">₱{{ number_format($item->subtotal, 2) }}</td>
                             @if($canReceive)
                                 <td>
                                     @if($remaining > 0)
@@ -182,10 +198,37 @@
                 </tbody>
             </table>
         </div>
-        @if($canReceive)
+        @if($isDraft)
+            <div style="padding: 18px 24px; display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn-action edit">Save Quantities</button>
+            </div>
+        @elseif($canReceive)
             <div style="padding: 18px 24px; display: flex; justify-content: flex-end;">
                 <button type="submit" class="btn-action edit">Receive Delivery</button>
             </div>
         @endif
     </div>
 </form>
+
+@if($isDraft)
+    <script>
+        // Recomputes this line's subtotal and the header's Total Value as
+        // the admin adjusts a quantity, before saving - purely a preview,
+        // the server recalculates both authoritatively on submit.
+        function updatePoTotals(input) {
+            var row = input.closest('tr');
+            var lineTotal = Number(input.value || 0) * Number(input.dataset.unitCost);
+            row.querySelector('.po-subtotal-cell').textContent = '₱' + lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            var grandTotal = 0;
+            document.querySelectorAll('.po-qty-ordered-input').forEach(function (el) {
+                grandTotal += Number(el.value || 0) * Number(el.dataset.unitCost);
+            });
+
+            var header = document.getElementById('poHeaderTotalValue');
+            if (header) {
+                header.textContent = '₱' + grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+        }
+    </script>
+@endif
