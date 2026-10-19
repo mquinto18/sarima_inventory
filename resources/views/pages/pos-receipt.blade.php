@@ -137,9 +137,38 @@
 		}
 
 		.receipt-vat-block {
-			margin-top: 8px;
-			padding-top: 8px;
+			margin-top: 10px;
+			padding-top: 10px;
+			border-top: 1px dashed #9ca3af;
+		}
+
+		.receipt-vat-row--total {
+			font-weight: 700;
 			border-top: 1px dotted #9ca3af;
+			margin-top: 4px;
+			padding-top: 6px;
+		}
+
+		.receipt-signature-block {
+			margin-top: 14px;
+			padding-top: 10px;
+			border-top: 1px dashed #9ca3af;
+			font-size: 0.82rem;
+		}
+
+		.receipt-signature-block div {
+			display: flex;
+			gap: 6px;
+			margin-bottom: 10px;
+			border-bottom: 1px solid #111827;
+			padding-bottom: 2px;
+		}
+
+		.receipt-item-count {
+			text-align: center;
+			font-weight: 700;
+			font-size: 0.85rem;
+			margin-top: 10px;
 		}
 
 		.receipt-non-vat-label {
@@ -229,12 +258,7 @@
 						<td>{{ $sale->product->name ?? 'Unknown item' }}</td>
 						<td>{{ $sale->quantity_sold }}</td>
 						<td>&#8369;{{ number_format($sale->unit_price, 2) }}</td>
-						<td>
-							&#8369;{{ number_format($sale->total_amount, 2) }}
-							@if($taxMode === 'VAT' && $sale->vat_type)
-								<span style="color: #6b7280;">({{ $sale->vat_type }})</span>
-							@endif
-						</td>
+						<td>&#8369;{{ number_format($sale->total_amount, 2) }}{{ $taxMode === 'VAT' && $sale->vat_type ? $sale->vat_type : '' }}</td>
 					</tr>
 				@endforeach
 			</tbody>
@@ -245,16 +269,25 @@
 			<span>&#8369;{{ number_format($totalAmount, 2) }}</span>
 		</div>
 
-		@if($taxMode === 'VAT')
-			<div class="receipt-vat-block">
-				<div class="receipt-vat-row"><span>VATable Sales (T)</span><span>&#8369;{{ number_format($vatableSales, 2) }}</span></div>
-				<div class="receipt-vat-row"><span>VAT-Exempt Sale (X)</span><span>&#8369;{{ number_format($vatExemptSales, 2) }}</span></div>
-				<div class="receipt-vat-row"><span>VAT Zero-Rated Sale (Z)</span><span>&#8369;{{ number_format($zeroRatedSales, 2) }}</span></div>
-				<div class="receipt-vat-row"><span>VAT - {{ $vatRateLabel }}%</span><span>&#8369;{{ number_format($vatAmount, 2) }}</span></div>
+		{{-- Null for sales recorded before cash tendering was captured. --}}
+		@if(!is_null($amountTendered))
+			<div class="receipt-tender-row">
+				<span>Cash Received</span>
+				<span>&#8369;{{ number_format($amountTendered, 2) }}</span>
 			</div>
-		@else
-			<div class="receipt-non-vat-label">NON-VAT REGISTERED</div>
+			<div class="receipt-tender-row receipt-tender-row--change">
+				<span>CHANGE</span>
+				<span>&#8369;{{ number_format($changeDue ?? 0, 2) }}</span>
+			</div>
 		@endif
+
+		<div class="receipt-item-count">** {{ $sales->count() }} item(s) **</div>
+
+		<div class="receipt-signature-block">
+			<div><span>Sold To:</span></div>
+			<div><span>Address:</span></div>
+			<div><span>TIN:</span></div>
+		</div>
 
 		@if($discountType)
 			<div class="receipt-discount-block">
@@ -268,21 +301,17 @@
 			</div>
 		@endif
 
-		<div class="receipt-total-row" style="margin-top: 8px;">
-			<span>AMOUNT DUE</span>
-			<span>&#8369;{{ number_format($amountDue, 2) }}</span>
-		</div>
-
-		{{-- Null for sales recorded before cash tendering was captured. --}}
-		@if(!is_null($amountTendered))
-			<div class="receipt-tender-row">
-				<span>Cash Received</span>
-				<span>&#8369;{{ number_format($amountTendered, 2) }}</span>
+		@if($taxMode === 'VAT')
+			<div class="receipt-vat-block">
+				<div class="receipt-vat-row"><span>VATable</span><span>(T)&nbsp;&nbsp;&#8369;{{ number_format($vatableSales, 2) }}</span></div>
+				<div class="receipt-vat-row"><span>VAT-Exempt Sale</span><span>(X)&nbsp;&nbsp;&#8369;{{ number_format($vatExemptSales, 2) }}</span></div>
+				<div class="receipt-vat-row"><span>VAT Zero-Rated Sale</span><span>(Z)&nbsp;&nbsp;&#8369;{{ number_format($zeroRatedSales, 2) }}</span></div>
+				<div class="receipt-vat-row"><span>VAT - {{ $vatRateLabel }}%</span><span>&#8369;{{ number_format($vatAmount, 2) }}</span></div>
+				<div class="receipt-vat-row receipt-vat-row--total"><span>Amount Due</span><span>&#8369;{{ number_format($amountDue, 2) }}</span></div>
 			</div>
-			<div class="receipt-tender-row receipt-tender-row--change">
-				<span>CHANGE</span>
-				<span>&#8369;{{ number_format($changeDue ?? 0, 2) }}</span>
-			</div>
+		@else
+			<div class="receipt-non-vat-label">NON-VAT REGISTERED</div>
+			<div class="receipt-vat-row receipt-vat-row--total" style="margin-top: 6px;"><span>Amount Due</span><span>&#8369;{{ number_format($amountDue, 2) }}</span></div>
 		@endif
 
 		<div class="receipt-footer">
