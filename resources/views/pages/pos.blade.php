@@ -578,6 +578,9 @@
 
 			if (!newQty || newQty <= 0) {
 				cart = cart.filter(function (i) { return i.product_id !== productId; });
+			} else if (newQty > 999) {
+				showToast('Quantity cannot exceed 999 per item.', 'error');
+				item.qty = Math.min(999, item.stock);
 			} else if (newQty > item.stock) {
 				showToast('Only ' + item.stock + ' unit(s) of "' + item.name + '" available.', 'error');
 				item.qty = item.stock;
@@ -617,7 +620,7 @@
 					'<td>' +
 					'<div style="display:flex; align-items:center; gap:8px;">' +
 					'<button type="button" class="pos-qty-btn pos-qty-minus">-</button>' +
-					'<input type="number" class="pos-qty-input" min="1" max="' + item.stock + '" value="' + item.qty + '">' +
+					'<input type="number" class="pos-qty-input" min="1" max="' + Math.min(999, item.stock) + '" maxlength="3" value="' + item.qty + '">' +
 					'<button type="button" class="pos-qty-btn pos-qty-plus">+</button>' +
 					'</div>' +
 					'</td>' +
@@ -704,6 +707,12 @@
 
 		$('#posCartBody').on('focus', '.pos-qty-input', function () {
 			$(this).select();
+		});
+
+		$('#posCartBody').on('input', '.pos-qty-input', function () {
+			if ($(this).val().length > 3) {
+				$(this).val($(this).val().slice(0, 3));
+			}
 		});
 
 		$('#posCartBody').on('change', '.pos-qty-input', function () {
