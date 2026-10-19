@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,14 @@ class ReportController extends Controller
 {
     private const SNAPSHOT_TTL_MINUTES = 15;
 
+    /**
+     * Every selectable report section. An admin picks a subset in the
+     * report drawer before it's built - skipping a section skips its
+     * (sometimes expensive, e.g. SARIMA) data gathering entirely, not just
+     * its rendering.
+     */
+    private const ALL_SECTIONS = ['forecasting', 'revenue', 'fast_moving', 'slow_moving', 'inventory'];
+
     private function denyStaff(): void
     {
         if (Auth::user()->role === 'staff') {
@@ -35,14 +44,39 @@ class ReportController extends Controller
     }
 
     /**
-     * Reuse the page controllers verbatim so the report can never drift from
-     * what Forecasting and Analytics actually display.
+     * Unknown values are dropped rather than rejected outright - the picker
+     * only ever sends valid keys, so an invalid one here means a stale/
+     * tampered request, not a real intent to fail the whole report.
+     * Empty/all-invalid falls back to everything, same as before this
+     * filter existed.
      */
-    private function gather(): array
+    private function normalizeSections($raw): array
     {
+        $sections = array_values(array_intersect((array) $raw, self::ALL_SECTIONS));
+
+        return $sections ?: self::ALL_SECTIONS;
+    }
+
+    /**
+     * Reuse the page controllers verbatim so the report can never drift from
+     * what Forecasting and Analytics actually display - but only call them
+     * when a selected section actually needs their data. SalesController::index()
+     * in particular can shell out to the SARIMA Python process, so skipping it
+     * when "Forecasting" isn't selected is a real time saving, not just a
+     * smaller PDF.
+     */
+    private function gather(array $sections): array
+    {
+        $needsForecasting = in_array('forecasting', $sections, true);
+        $needsAnalytics = (bool) array_intersect(['revenue', 'fast_moving', 'slow_moving'], $sections);
+        $needsInventory = in_array('inventory', $sections, true);
+
         return [
-            'forecasting' => app(SalesController::class)->index()->getData(),
-            'analytics' => app(AnalyticsController::class)->index()->getData(),
+            'forecasting' => $needsForecasting ? app(SalesController::class)->index()->getData() : [],
+            'analytics' => $needsAnalytics ? app(AnalyticsController::class)->index()->getData() : [],
+            'inventory' => $needsInventory
+                ? Product::orderBy('name')->get(['name', 'sku', 'category', 'stock', 'status', 'price'])
+                : collect(),
         ];
     }
 
@@ -62,18 +96,24 @@ class ReportController extends Controller
      * The full snapshot is cached under the returned token so the PDF's tables
      * match the charts exactly, and the expensive gather runs only once.
      */
-    public function datasets()
+    public function datasets(Request $request)
     {
         $this->denyStaff();
 
-        $data = $this->gather();
+        $sections = $this->normalizeSections($request->query('sections', []));
+        $data = $this->gather($sections);
         $token = (string) Str::uuid();
-        Cache::put($this->snapshotKey($token), $data, now()->addMinutes(self::SNAPSHOT_TTL_MINUTES));
+        Cache::put(
+            $this->snapshotKey($token),
+            array_merge($data, ['sections' => $sections]),
+            now()->addMinutes(self::SNAPSHOT_TTL_MINUTES)
+        );
 
         $categoryRevenue = $data['analytics']['categoryRevenue'] ?? collect();
 
         return response()->json([
             'token' => $token,
+            'sections' => $sections,
             'salesTrend' => $data['forecasting']['salesTrend'] ?? ['months' => [], 'actual' => []],
             'forecast' => $data['forecasting']['forecast'] ?? ['predicted' => []],
             'trendMonths' => $data['analytics']['trendMonths'] ?? [],
@@ -111,8 +151,10 @@ class ReportController extends Controller
             ->all();
 
         $pdf = Pdf::loadView('pdf.inventory_report', [
-            'f' => $data['forecasting'],
-            'a' => $data['analytics'],
+            'f' => $data['forecasting'] ?? [],
+            'a' => $data['analytics'] ?? [],
+            'inventory' => $data['inventory'] ?? collect(),
+            'sections' => $data['sections'] ?? self::ALL_SECTIONS,
             'charts' => $charts,
             'generatedAt' => now(),
             'generatedBy' => Auth::user(),

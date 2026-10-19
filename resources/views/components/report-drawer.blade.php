@@ -118,6 +118,58 @@
         pointer-events: none;
     }
 
+    .report-sections__inner {
+        max-width: 420px;
+        text-align: left;
+    }
+
+    .report-sections__title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--color-text);
+        margin-bottom: 4px;
+    }
+
+    .report-sections__sub {
+        color: var(--color-text-muted);
+        font-size: 0.88rem;
+        margin-bottom: 18px;
+    }
+
+    .report-sections__option {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 14px;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .report-sections__option input {
+        width: 17px;
+        height: 17px;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+
+    .report-sections__option-label {
+        font-weight: 600;
+        color: var(--color-text);
+        display: block;
+    }
+
+    .report-sections__option-desc {
+        font-weight: 400;
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+    }
+
+    .report-sections__actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+    }
+
     @media (max-width: 700px) {
         .report-drawer__head { flex-wrap: wrap; }
     }
@@ -145,6 +197,52 @@
             <div class="report-drawer__spinner" id="reportSpinner"></div>
             <div id="reportStateText">Gathering data and rendering charts…</div>
         </div>
+
+        <div class="report-drawer__state" id="reportSections">
+            <div class="report-sections__inner">
+                <div class="report-sections__title">What should this report include?</div>
+                <div class="report-sections__sub">Pick only what you need — skipping a section builds the report faster.</div>
+
+                <label class="report-sections__option">
+                    <input type="checkbox" class="report-section-checkbox" value="forecasting" checked>
+                    <span>
+                        <span class="report-sections__option-label">Forecasting &amp; SARIMA</span>
+                        <span class="report-sections__option-desc">Predicted revenue, model accuracy, seasonality, reorder points.</span>
+                    </span>
+                </label>
+                <label class="report-sections__option">
+                    <input type="checkbox" class="report-section-checkbox" value="revenue" checked>
+                    <span>
+                        <span class="report-sections__option-label">Revenue Analytics &amp; Trends</span>
+                        <span class="report-sections__option-desc">KPIs, revenue trend, revenue by category, month-on-month comparison.</span>
+                    </span>
+                </label>
+                <label class="report-sections__option">
+                    <input type="checkbox" class="report-section-checkbox" value="fast_moving" checked>
+                    <span>
+                        <span class="report-sections__option-label">Fast-Moving Products</span>
+                    </span>
+                </label>
+                <label class="report-sections__option">
+                    <input type="checkbox" class="report-section-checkbox" value="slow_moving" checked>
+                    <span>
+                        <span class="report-sections__option-label">Slow-Moving &amp; Dead Stock</span>
+                    </span>
+                </label>
+                <label class="report-sections__option">
+                    <input type="checkbox" class="report-section-checkbox" value="inventory">
+                    <span>
+                        <span class="report-sections__option-label">On-Hand Inventory</span>
+                        <span class="report-sections__option-desc">Full current stock list — every product, quantity on hand, and price.</span>
+                    </span>
+                </label>
+
+                <div class="report-sections__actions">
+                    <button type="button" class="btn-action edit" id="reportGenerateBtn">Generate Report</button>
+                    <button type="button" class="btn-action ghost" id="reportCancelSectionsBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="report-stage" aria-hidden="true">
@@ -167,6 +265,9 @@
         var printBtn = document.getElementById('reportPrintBtn');
         var downloadBtn = document.getElementById('reportDownloadBtn');
         var backBtn = document.getElementById('reportBackBtn');
+        var sectionsPanel = document.getElementById('reportSections');
+        var generateBtn = document.getElementById('reportGenerateBtn');
+        var cancelSectionsBtn = document.getElementById('reportCancelSectionsBtn');
 
         var blobUrl = null;
         var built = {};
@@ -181,6 +282,21 @@
 
         function clearState() {
             state.style.display = 'none';
+        }
+
+        function showSectionChooser() {
+            state.style.display = 'none';
+            frame.removeAttribute('src');
+            sectionsPanel.style.display = 'flex';
+        }
+
+        function hideSectionChooser() {
+            sectionsPanel.style.display = 'none';
+        }
+
+        function selectedSections() {
+            return Array.from(document.querySelectorAll('.report-section-checkbox:checked'))
+                .map(function (el) { return el.value; });
         }
 
         function open() {
@@ -203,6 +319,7 @@
         function reset() {
             printBtn.disabled = true;
             downloadBtn.disabled = true;
+            hideSectionChooser();
             frame.removeAttribute('src');
             // Release the previous document before building another, otherwise
             // each regenerate leaks a multi-megabyte blob for the tab's lifetime.
@@ -295,12 +412,21 @@
             });
         }
 
-        async function build() {
+        var SECTION_LABELS = {
+            forecasting: 'Forecasting',
+            revenue: 'Revenue Analytics',
+            fast_moving: 'Fast-Moving',
+            slow_moving: 'Slow-Moving',
+            inventory: 'On-Hand Inventory'
+        };
+
+        async function build(sections) {
             reset();
             setState('Gathering data and rendering charts…', true);
 
             try {
-                var res = await fetch('{{ route('reports.datasets') }}', {
+                var qs = sections.map(function (s) { return 'sections[]=' + encodeURIComponent(s); }).join('&');
+                var res = await fetch('{{ route('reports.datasets') }}' + '?' + qs, {
                     headers: { 'Accept': 'application/json' },
                     credentials: 'same-origin'
                 });
@@ -333,8 +459,9 @@
                 blobUrl = URL.createObjectURL(blob);
                 frame.src = blobUrl + '#toolbar=0&navpanes=0';
 
+                var chosenLabels = (data.sections || sections).map(function (s) { return SECTION_LABELS[s] || s; });
                 document.getElementById('reportDrawerMeta').textContent =
-                    'Forecasting & Analytics · ' + Math.round(blob.size / 1024).toLocaleString() + ' KB';
+                    chosenLabels.join(', ') + ' · ' + Math.round(blob.size / 1024).toLocaleString() + ' KB';
                 printBtn.disabled = false;
                 downloadBtn.disabled = false;
                 clearState();
@@ -347,9 +474,21 @@
             trigger.addEventListener('click', function (e) {
                 e.preventDefault();
                 open();
-                build();
+                showSectionChooser();
             });
         });
+
+        generateBtn.addEventListener('click', function () {
+            var sections = selectedSections();
+            if (!sections.length) {
+                showToast('Select at least one section to include.', 'error');
+                return;
+            }
+            hideSectionChooser();
+            build(sections);
+        });
+
+        cancelSectionsBtn.addEventListener('click', close);
 
         backBtn.addEventListener('click', close);
         scrim.addEventListener('click', close);

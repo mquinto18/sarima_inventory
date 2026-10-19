@@ -4,6 +4,29 @@
     $peso = fn ($v) => '₱' . number_format((float) $v, 2);
     $pct = fn ($v) => (($v ?? 0) >= 0 ? '+' : '') . number_format((float) ($v ?? 0), 1) . '%';
     $chart = fn ($key) => $charts[$key] ?? null;
+
+    // Which top-level sections the admin actually picked in the report
+    // drawer - each gate below mirrors App\Http\Controllers\ReportController::gather(),
+    // so a section is only rendered here when its data was actually fetched.
+    $hasForecasting = in_array('forecasting', $sections, true);
+    $hasRevenue = in_array('revenue', $sections, true);
+    $hasFastMoving = in_array('fast_moving', $sections, true);
+    $hasSlowMoving = in_array('slow_moving', $sections, true);
+    $hasInventory = in_array('inventory', $sections, true);
+    $hasAnalyticsPart = $hasRevenue || $hasFastMoving || $hasSlowMoving;
+
+    $coverTiles = [];
+    if ($hasRevenue) {
+        $coverTiles[] = ['label' => 'Revenue YTD', 'value' => $peso($a['salesYtd'] ?? 0), 'sub' => $pct($a['salesYoyChange'] ?? 0) . ' YoY', 'up' => ($a['salesYoyChange'] ?? 0) >= 0];
+        $coverTiles[] = ['label' => 'Revenue This Month', 'value' => $peso($a['revenueThisMonth'] ?? 0), 'sub' => $pct($a['revenueChange'] ?? 0) . ' vs last', 'up' => ($a['revenueChange'] ?? 0) >= 0];
+    }
+    if ($hasForecasting) {
+        $coverTiles[] = ['label' => 'Forecast Accuracy', 'value' => number_format($f['forecastAccuracy']['accuracy_percentage'] ?? 0, 1) . '%', 'sub' => $f['forecastAccuracy']['status'] ?? '—'];
+        $coverTiles[] = ['label' => 'Items To Reorder', 'value' => $f['reorderCount'] ?? 0, 'sub' => 'at/below reorder point'];
+    }
+    if ($hasInventory) {
+        $coverTiles[] = ['label' => 'Products On Hand', 'value' => number_format($inventory->count()), 'sub' => number_format($inventory->sum('stock')) . ' total units'];
+    }
 @endphp
 <!DOCTYPE html>
 <html>
@@ -83,32 +106,21 @@
     </div>
     <div class="rule"></div>
 
-    <table class="kpi">
-        <tr>
-            <td>
-                <div class="label">Revenue YTD</div>
-                <div class="value">{{ $peso($a['salesYtd'] ?? 0) }}</div>
-                <div class="{{ ($a['salesYoyChange'] ?? 0) >= 0 ? 'up' : 'down' }}">{{ $pct($a['salesYoyChange'] ?? 0) }} YoY</div>
-            </td>
-            <td>
-                <div class="label">Revenue This Month</div>
-                <div class="value">{{ $peso($a['revenueThisMonth'] ?? 0) }}</div>
-                <div class="{{ ($a['revenueChange'] ?? 0) >= 0 ? 'up' : 'down' }}">{{ $pct($a['revenueChange'] ?? 0) }} vs last</div>
-            </td>
-            <td>
-                <div class="label">Forecast Accuracy</div>
-                <div class="value">{{ number_format($f['forecastAccuracy']['accuracy_percentage'] ?? 0, 1) }}%</div>
-                <div class="muted">{{ $f['forecastAccuracy']['status'] ?? '—' }}</div>
-            </td>
-            <td>
-                <div class="label">Items To Reorder</div>
-                <div class="value">{{ $f['reorderCount'] ?? 0 }}</div>
-                <div class="muted">at/below reorder point</div>
-            </td>
-        </tr>
-    </table>
+    @if(count($coverTiles))
+        <table class="kpi">
+            <tr>
+                @foreach($coverTiles as $tile)
+                    <td>
+                        <div class="label">{{ $tile['label'] }}</div>
+                        <div class="value">{{ $tile['value'] }}</div>
+                        <div class="{{ isset($tile['up']) ? ($tile['up'] ? 'up' : 'down') : 'muted' }}">{{ $tile['sub'] }}</div>
+                    </td>
+                @endforeach
+            </tr>
+        </table>
+    @endif
 
-    @if(!empty($a['insights']))
+    @if($hasRevenue && !empty($a['insights']))
         <h3>Key Insights</h3>
         <table>
             @foreach($a['insights'] as $insight)
@@ -117,7 +129,7 @@
         </table>
     @endif
 
-    @if(!empty($a['recommendations']))
+    @if($hasRevenue && !empty($a['recommendations']))
         <h3>Recommendations</h3>
         <table>
             @foreach($a['recommendations'] as $rec)
@@ -126,6 +138,7 @@
         </table>
     @endif
 
+    @if($hasForecasting)
     {{-- ==================== PART 1 — FORECASTING ==================== --}}
     <div class="page-break"></div>
     <h2>Part 1 — Forecasting</h2>
@@ -317,11 +330,14 @@
             margin over a 6-month window — not from the SARIMA model.
         </div>
     @endif
+    @endif{{-- $hasForecasting --}}
 
+    @if($hasAnalyticsPart)
     {{-- ==================== PART 2 — ANALYTICS ==================== --}}
     <div class="page-break"></div>
     <h2>Part 2 — Analytics</h2>
 
+    @if($hasRevenue)
     <table class="kpi">
         <tr>
             <td>
@@ -404,7 +420,9 @@
             </tr>
         </tbody>
     </table>
+    @endif{{-- $hasRevenue --}}
 
+    @if($hasFastMoving)
     @php $fast = $a['fastMovingProducts'] ?? collect(); @endphp
     <h3>Fast-Moving Products</h3>
     @if($fast->count())
@@ -423,7 +441,9 @@
     @else
         <div class="missing">No products met the fast-moving threshold in this window.</div>
     @endif
+    @endif{{-- $hasFastMoving --}}
 
+    @if($hasSlowMoving)
     @php $slow = $a['slowMovingProducts'] ?? collect(); @endphp
     <h3>Slow-Moving &amp; Dead Stock</h3>
     @if($slow->count())
@@ -442,6 +462,42 @@
     @else
         <div class="missing">No slow-moving products in this window.</div>
     @endif
+    @endif{{-- $hasSlowMoving --}}
+    @endif{{-- $hasAnalyticsPart --}}
+
+    @if($hasInventory)
+    {{-- ==================== PART 3 — ON-HAND INVENTORY ==================== --}}
+    <div class="page-break"></div>
+    <h2>Part 3 — On-Hand Inventory</h2>
+    <div class="note">{{ $inventory->count() }} products, {{ number_format($inventory->sum('stock')) }} total units on hand.</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Category</th>
+                <th class="num">Stock</th>
+                <th>Status</th>
+                <th class="num">Price</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($inventory as $p)
+                <tr>
+                    <td>{{ $p->name }}</td>
+                    <td>{{ $p->sku ?? '—' }}</td>
+                    <td>{{ $p->category ?? '—' }}</td>
+                    <td class="num">{{ number_format($p->stock) }}</td>
+                    <td>{{ $p->status ?? '—' }}</td>
+                    <td class="num">{{ $peso($p->price) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="muted">No products found.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+    @endif{{-- $hasInventory --}}
 </body>
 
 </html>
