@@ -152,6 +152,27 @@
 		color: var(--color-primary);
 	}
 
+	.pos-qty-input {
+		width: 52px;
+		height: 26px;
+		text-align: center;
+		border-radius: 6px;
+		border: 1.5px solid #e5e7eb;
+		font-weight: 600;
+		-moz-appearance: textfield;
+	}
+
+	.pos-qty-input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.pos-qty-input::-webkit-outer-spin-button,
+	.pos-qty-input::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+
 	.pos-cart-total-row {
 		display: flex;
 		justify-content: space-between;
@@ -546,13 +567,20 @@
 		function changeQty(productId, delta) {
 			var item = cart.find(function (i) { return i.product_id === productId; });
 			if (!item) return;
+			setQty(productId, item.qty + delta);
+		}
 
-			var newQty = item.qty + delta;
-			if (newQty <= 0) {
+		function setQty(productId, newQty) {
+			var item = cart.find(function (i) { return i.product_id === productId; });
+			if (!item) return;
+
+			newQty = Math.floor(Number(newQty));
+
+			if (!newQty || newQty <= 0) {
 				cart = cart.filter(function (i) { return i.product_id !== productId; });
 			} else if (newQty > item.stock) {
 				showToast('Only ' + item.stock + ' unit(s) of "' + item.name + '" available.', 'error');
-				return;
+				item.qty = item.stock;
 			} else {
 				item.qty = newQty;
 			}
@@ -589,7 +617,7 @@
 					'<td>' +
 					'<div style="display:flex; align-items:center; gap:8px;">' +
 					'<button type="button" class="pos-qty-btn pos-qty-minus">-</button>' +
-					'<span style="min-width:20px; text-align:center; display:inline-block;">' + item.qty + '</span>' +
+					'<input type="number" class="pos-qty-input" min="1" max="' + item.stock + '" value="' + item.qty + '">' +
 					'<button type="button" class="pos-qty-btn pos-qty-plus">+</button>' +
 					'</div>' +
 					'</td>' +
@@ -672,6 +700,21 @@
 		$('#posCartBody').on('click', '.pos-qty-minus', function () {
 			var productId = Number($(this).closest('tr').data('product-id'));
 			changeQty(productId, -1);
+		});
+
+		$('#posCartBody').on('focus', '.pos-qty-input', function () {
+			$(this).select();
+		});
+
+		$('#posCartBody').on('change', '.pos-qty-input', function () {
+			var productId = Number($(this).closest('tr').data('product-id'));
+			setQty(productId, $(this).val());
+		});
+
+		$('#posCartBody').on('keydown', '.pos-qty-input', function (e) {
+			if (e.key === 'Enter') {
+				$(this).trigger('change');
+			}
 		});
 
 		$('#posCartBody').on('click', '.pos-remove-btn', function () {
